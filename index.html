@@ -940,7 +940,9 @@
             try {
                 await getMediaStream();
             } catch (e) {
-                document.getElementById('create-room-modal').classList.add('hidden');
+                // Keep modal open and show error so user knows why it stopped
+                document.getElementById('create-modal-title').innerText = "Media Access Required";
+                document.getElementById('create-modal-subtitle').innerText = "NexusCall needs camera and microphone access to function as a host. Please refresh or check your browser site settings.";
                 return;
             }
 
@@ -1287,6 +1289,10 @@
         // Initialize user media
         async function getMediaStream(screenShare = false) {
             try {
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    throw new Error("Media devices not supported in this environment.");
+                }
+
                 if (localStream) {
                     localStream.getTracks().forEach(track => track.stop());
                 }
@@ -1294,10 +1300,20 @@
                 if (screenShare) {
                     localStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
                 } else {
-                    localStream = await navigator.mediaDevices.getUserMedia({
-                        video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } },
-                        audio: true
-                    });
+                    // Attempt to request ideal constraints first
+                    try {
+                        localStream = await navigator.mediaDevices.getUserMedia({
+                            video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } },
+                            audio: true
+                        });
+                    } catch (err) {
+                        // Fallback to basic request if specific constraints fail
+                        console.warn("Specific constraints failed, retrying with basic device access:", err);
+                        localStream = await navigator.mediaDevices.getUserMedia({
+                            video: true,
+                            audio: true
+                        });
+                    }
                 }
 
                 localVideo.srcObject = localStream;
@@ -1322,11 +1338,19 @@
                 return localStream;
             } catch (err) {
                 console.error("Camera/Screen access failed: ", err);
-                if (screenShare && (err.name === 'NotAllowedError' || err.name === 'SecurityError' || err.message.includes('permission') || err.message.includes('disallowed') || err.message.includes('policy'))) {
+                
+                let userMessage = "Could not access camera/mic or screen share.";
+                
+                if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+                    userMessage = "No camera or microphone found. Please connect a device and try again.";
+                } else if (err.name === 'NotAllowedError' || err.name === 'SecurityError') {
+                    userMessage = "Access denied. Please grant permission for camera/microphone in your browser settings.";
+                } else if (screenShare && (err.name === 'NotAllowedError' || err.message.includes('permission') || err.message.includes('disallowed') || err.message.includes('policy'))) {
                     showErrorModal("Screen sharing was disallowed or blocked by this browser window's sandboxing permissions policy. Please run the page in a dedicated tab.");
-                } else {
-                    showNotification("Could not access camera/mic or screen share.");
+                    return null;
                 }
+
+                showNotification(userMessage);
                 throw err;
             }
         }
