@@ -503,6 +503,11 @@
                     </button>
                 </div>
                 
+                <button onclick="startCreatedCall()" class="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 active:scale-95 text-xs sm:text-sm">
+                    <i data-lucide="play" class="w-4 h-4"></i>
+                    <span>Start Call (Enter Workspace)</span>
+                </button>
+                
                 <p class="text-[10px] sm:text-[11px] text-gray-500 italic">Share this invitation directly. Keep this modal open to connect!</p>
             </div>
             
@@ -830,6 +835,22 @@
             }
             activeCoordinatedRoom = null;
             document.getElementById('room-coordination-panel').classList.add('hidden');
+        }
+
+        function startCreatedCall() {
+            document.getElementById('create-room-modal').classList.add('hidden');
+            launchApp('manual');
+            
+            // Show the active coordination room dashboard inside the calling sidebar
+            const coordinationPanel = document.getElementById('room-coordination-panel');
+            if (coordinationPanel) {
+                coordinationPanel.classList.remove('hidden');
+            }
+            
+            if (activeCoordinatedRoom) {
+                document.getElementById('remote-stream-message').innerText = `Waiting for peer to join Room ${activeCoordinatedRoom}...`;
+            }
+            showNotification("Entered calling workspace! Waiting for peer to connect...");
         }
 
         // UI Modals triggers
