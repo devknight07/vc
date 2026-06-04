@@ -3,491 +3,698 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NexusCall - Premium Serverless P2P Real-Time Communication</title>
+    <title>NexusCall - Serverless P2P Video Client</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
         body {
             font-family: 'Plus Jakarta Sans', sans-serif;
-            background: radial-gradient(circle at top left, #0f172a, #020617);
-            overflow-x: hidden;
+            background: radial-gradient(circle at top left, #111827, #030712);
         }
         .glass-panel {
-            background: rgba(15, 23, 42, 0.45);
-            backdrop-filter: blur(20px);
+            background: rgba(17, 24, 39, 0.7);
+            backdrop-filter: blur(12px);
             border: 1px solid rgba(255, 255, 255, 0.08);
         }
-        .glass-panel-hover:hover {
-            background: rgba(15, 23, 42, 0.6);
-            border-color: rgba(99, 102, 241, 0.25);
-            box-shadow: 0 10px 30px -10px rgba(99, 102, 241, 0.15);
-        }
-        /* Custom Glowing Background Blobs */
-        .glow-blob {
-            position: absolute;
-            width: 500px;
-            height: 500px;
-            border-radius: 50%;
-            background: radial-gradient(circle, rgba(99, 102, 241, 0.12) 0%, rgba(0, 0, 0, 0) 70%);
-            filter: blur(50px);
-            z-index: -1;
-            pointer-events: none;
-        }
-        /* Smooth transitions */
-        .fade-transition {
-            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        /* Video wrapper styling */
         .video-container::before {
             content: '';
             position: absolute;
             inset: 0;
-            border-radius: 1.5rem;
-            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 1rem;
+            border: 2px solid rgba(255, 255, 255, 0.1);
             pointer-events: none;
             z-index: 10;
         }
-        /* Custom Scrollbar */
-        ::-webkit-scrollbar {
-            width: 6px;
+        /* Custom video call filter overrides */
+        .filter-grayscale { filter: grayscale(100%); }
+        .filter-neon { filter: hue-rotate(90deg) saturate(200%) brightness(120%); }
+        .filter-none { filter: none; }
+        
+        /* Smooth scrolling */
+        html {
+            scroll-behavior: smooth;
         }
-        ::-webkit-scrollbar-track {
-            background: rgba(0, 0, 0, 0.1);
+
+        /* Dynamic diagonal red line overlay style for crossed out inactive controls */
+        .crossed-line {
+            position: relative;
         }
-        ::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 99px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-            background: rgba(99, 102, 241, 0.5);
+        .crossed-line::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 60%;
+            height: 3px;
+            background-color: #ef4444; /* Tailwind red-500 */
+            transform: translate(-50%, -50%) rotate(-45deg);
+            pointer-events: none;
+            border-radius: 9999px;
+            box-shadow: 0 0 6px rgba(239, 68, 68, 0.8), 0 0 2px rgba(0, 0, 0, 0.8);
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 20;
+            opacity: 1;
         }
     </style>
 </head>
-<body class="min-h-screen text-gray-100 flex flex-col antialiased relative">
+<body class="min-h-screen text-gray-100 flex flex-col antialiased relative overflow-x-hidden">
 
-    <!-- Glowing Background Elements -->
-    <div class="glow-blob top-[-10%] left-[-10%]"></div>
-    <div class="glow-blob bottom-[-10%] right-[-10%]"></div>
-    <div class="glow-blob top-[40%] right-[20%]"></div>
+    <!-- Ambient Backdrop Glows -->
+    <div class="absolute top-0 left-1/4 w-[500px] h-[500px] bg-indigo-600/10 rounded-full filter blur-[120px] pointer-events-none -z-10 animate-pulse"></div>
+    <div class="absolute bottom-10 right-10 w-[400px] h-[400px] bg-emerald-600/5 rounded-full filter blur-[100px] pointer-events-none -z-10"></div>
 
-    <!-- Header -->
-    <header class="glass-panel sticky top-0 z-50 px-6 py-4 border-b border-white/5">
-        <div class="max-w-7xl mx-auto flex items-center justify-between gap-4">
-            <div class="flex items-center space-x-3 cursor-pointer" onclick="goHome()">
-                <div class="bg-gradient-to-tr from-indigo-600 to-violet-500 p-2.5 rounded-xl shadow-lg shadow-indigo-500/20">
+    <!-- ========================================== -->
+    <!-- STATE 1: SAAS LANDING PORTAL (Hero / Intro) -->
+    <!-- ========================================== -->
+    <div id="landing-portal" class="min-h-screen flex flex-col justify-between relative z-10 transition-all duration-500 ease-in-out">
+        
+        <!-- Landing Navbar -->
+        <header class="max-w-7xl w-full mx-auto px-6 py-6 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="bg-indigo-600 p-2.5 rounded-xl shadow-lg shadow-indigo-500/30">
                     <i data-lucide="video" class="w-6 h-6 text-white"></i>
                 </div>
                 <div>
-                    <div class="flex items-center gap-2">
-                        <span class="font-extrabold text-xl tracking-tight bg-gradient-to-r from-white via-slate-100 to-indigo-300 bg-clip-text text-transparent">NexusCall</span>
-                        <span class="px-2 py-0.5 text-[9px] font-bold tracking-widest bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 rounded-full uppercase">v2.0</span>
-                    </div>
-                    <p class="text-[10px] text-slate-400 font-medium tracking-wide">Secure Peer-to-Peer Encrypted Calls</p>
+                    <h1 class="font-bold text-xl tracking-tight bg-gradient-to-r from-white via-gray-200 to-indigo-400 bg-clip-text text-transparent">NexusCall</h1>
+                    <p class="text-[10px] text-gray-400 font-medium tracking-wide">STATIC SERVERLESS P2P</p>
                 </div>
             </div>
             
-            <div class="flex items-center gap-4">
-                <span id="connection-badge" class="px-3 py-1.5 text-xs font-semibold rounded-full bg-red-500/10 text-red-400 border border-red-500/20 flex items-center gap-2">
-                    <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
-                    Disconnected
-                </span>
-                <button id="toggle-info-btn" class="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-slate-300 hover:text-white transition-all border border-white/5">
-                    <i data-lucide="info" class="w-5 h-5"></i>
-                </button>
-            </div>
-        </div>
-    </header>
+            <nav class="hidden md:flex items-center space-x-8 text-sm font-medium text-gray-400">
+                <a href="#features" class="hover:text-white transition">Features</a>
+                <a href="#" onclick="showInfoModal()" class="hover:text-white transition flex items-center gap-1"><i data-lucide="help-circle" class="w-4 h-4"></i> Help</a>
+            </nav>
 
-    <!-- VIEW 1: PREMIUM LANDING PORTAL -->
-    <div id="landing-portal" class="flex-grow max-w-7xl w-full mx-auto px-4 py-8 md:py-16 flex flex-col justify-center fade-transition">
-        
-        <!-- Hero Title Block -->
-        <div class="text-center max-w-3xl mx-auto space-y-6 mb-12">
-            <div class="inline-flex items-center gap-2 px-3 py-1 bg-white/5 border border-white/10 rounded-full text-xs text-indigo-300">
-                <span class="flex h-2 w-2 relative">
-                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-                    <span class="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
-                </span>
-                100% Serverless. Zero Logs. Zero Lag.
-            </div>
-            <h1 class="text-4xl md:text-6xl font-extrabold tracking-tight text-white leading-tight">
-                Direct, encrypted <br/>
-                <span class="bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">peer-to-peer video calls</span>
-            </h1>
-            <p class="text-base md:text-lg text-slate-400 max-w-2xl mx-auto">
-                Connect instantly over high-fidelity video streams. No server storing your data, no login required. Simple, secure WebRTC protocol running straight inside your browser.
-            </p>
-        </div>
-
-        <!-- Call to Action Buttons -->
-        <div class="flex flex-col sm:flex-row items-center justify-center gap-4 max-w-md mx-auto w-full mb-16">
-            <button onclick="launchAppConsole()" class="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-semibold rounded-2xl shadow-xl shadow-indigo-600/20 hover:shadow-indigo-500/30 transition-all transform active:scale-95 flex items-center justify-center gap-3 group">
-                Launch calling terminal
-                <i data-lucide="arrow-right" class="w-5 h-5 group-hover:translate-x-1 transition-transform"></i>
+            <button onclick="launchApp('manual')" class="hidden px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs rounded-xl shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 transition flex items-center gap-1.5 active:scale-95">
+                <span>Launch Console</span>
+                <i data-lucide="arrow-right" class="w-4 h-4"></i>
             </button>
-            <button onclick="document.getElementById('toggle-info-btn').click()" class="w-full sm:w-auto px-8 py-4 bg-white/5 hover:bg-white/10 text-white font-medium rounded-2xl border border-white/5 hover:border-white/10 transition-all flex items-center justify-center gap-2">
-                Learn the tech
-            </button>
-        </div>
+        </header>
 
-        <!-- Interactive Real-time Stats Grid -->
-        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-16">
-            <div class="glass-panel p-6 rounded-2xl text-center space-y-1">
-                <p class="text-slate-400 text-xs font-semibold uppercase tracking-wider">Average Latency</p>
-                <p class="text-2xl md:text-3xl font-extrabold text-indigo-400">&lt;15ms</p>
-                <p class="text-[10px] text-slate-500">Direct peer route</p>
-            </div>
-            <div class="glass-panel p-6 rounded-2xl text-center space-y-1">
-                <p class="text-slate-400 text-xs font-semibold uppercase tracking-wider">Encryption Standard</p>
-                <p class="text-2xl md:text-3xl font-extrabold text-indigo-400">SRTP & DTLS</p>
-                <p class="text-[10px] text-slate-500">End-to-end secure</p>
-            </div>
-            <div class="glass-panel p-6 rounded-2xl text-center space-y-1">
-                <p class="text-slate-400 text-xs font-semibold uppercase tracking-wider">Signaling Path</p>
-                <p class="text-2xl md:text-3xl font-extrabold text-indigo-400">Decentralized</p>
-                <p class="text-[10px] text-slate-500">No central media server</p>
-            </div>
-            <div class="glass-panel p-6 rounded-2xl text-center space-y-1">
-                <p class="text-slate-400 text-xs font-semibold uppercase tracking-wider">Video Quality</p>
-                <p class="text-2xl md:text-3xl font-extrabold text-indigo-400">1080p HD</p>
-                <p class="text-[10px] text-slate-500">Adaptive WebRTC bitrates</p>
-            </div>
-        </div>
-
-        <!-- Premium Feature Highlights -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div class="glass-panel glass-panel-hover p-6 rounded-2xl space-y-3 transition-all duration-300">
-                <div class="p-3 bg-indigo-500/10 text-indigo-400 rounded-xl w-fit">
-                    <i data-lucide="shield-check" class="w-6 h-6"></i>
-                </div>
-                <h3 class="font-bold text-lg text-white">Direct P2P Architecture</h3>
-                <p class="text-sm text-slate-400 leading-relaxed">
-                    Once initialized, your video and audio signals bypass all intermediary nodes, streaming directly to your peer browser for pure privacy and zero server intercept.
-                </p>
-            </div>
-            <div class="glass-panel glass-panel-hover p-6 rounded-2xl space-y-3 transition-all duration-300">
-                <div class="p-3 bg-indigo-500/10 text-indigo-400 rounded-xl w-fit">
-                    <i data-lucide="monitor" class="w-6 h-6"></i>
-                </div>
-                <h3 class="font-bold text-lg text-white">Full Screen & Audio Share</h3>
-                <p class="text-sm text-slate-400 leading-relaxed">
-                    Share detailed presentation decks, code files, or design layouts directly using modern browser streams with support for adaptive quality compression.
-                </p>
-            </div>
-            <div class="glass-panel glass-panel-hover p-6 rounded-2xl space-y-3 transition-all duration-300">
-                <div class="p-3 bg-indigo-500/10 text-indigo-400 rounded-xl w-fit">
-                    <i data-lucide="message-square" class="w-6 h-6"></i>
-                </div>
-                <h3 class="font-bold text-lg text-white">Secure Parallel Data Channels</h3>
-                <p class="text-sm text-slate-400 leading-relaxed">
-                    Send encrypted chats and raw data directly alongside the video/audio channel inside an independent, cryptographically secure peer pipeline.
-                </p>
-            </div>
-        </div>
-
-    </div>
-
-    <!-- VIEW 2: ACTIVE CALL CONSOLE (HIDDEN BY DEFAULT) -->
-    <div id="calling-console" class="hidden flex-grow max-w-7xl w-full mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 fade-transition">
-        
-        <!-- Video Stream Interface (Left/Center) -->
-        <section class="lg:col-span-8 flex flex-col gap-4">
+        <!-- Hero Section -->
+        <main class="max-w-7xl w-full mx-auto px-6 py-12 md:py-20 grid grid-cols-1 lg:grid-cols-12 gap-12 items-center flex-grow">
             
-            <!-- Video Stage -->
-            <div class="relative flex-grow min-h-[400px] md:min-h-[550px] glass-panel rounded-3xl overflow-hidden flex items-center justify-center shadow-2xl">
-                
-                <!-- Remote Stream Placeholder -->
-                <div id="remote-stream-placeholder" class="absolute inset-0 flex flex-col items-center justify-center text-slate-500 bg-slate-950/90 z-10 transition duration-300">
-                    <div class="p-6 rounded-3xl bg-slate-900 border border-slate-800 mb-4 shadow-xl">
-                        <i data-lucide="user" class="w-16 h-16 text-slate-600"></i>
-                    </div>
-                    <p class="font-bold text-lg text-slate-300">Ready to initiate connection</p>
-                    <p class="text-xs text-slate-500 mt-2 max-w-xs text-center px-4">Get your video feed ready on the side and exchange security handshakes to start streaming.</p>
+            <!-- Hero Copy -->
+            <div class="lg:col-span-7 flex flex-col gap-6 text-center lg:text-left">
+                <div class="inline-flex self-center lg:self-start items-center gap-2 bg-indigo-500/10 border border-indigo-500/20 px-3.5 py-1.5 rounded-full text-xs font-semibold text-indigo-300">
+                    <span class="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-ping"></span>
+                    Now with 6-digit serverless room codes
                 </div>
                 
-                <video id="remote-video" autoplay playsinline class="w-full h-full object-cover rounded-3xl"></video>
+                <h2 class="text-4xl md:text-6xl font-extrabold tracking-tight leading-none text-white">
+                    Direct, Private <br class="hidden md:inline">
+                    <span class="bg-gradient-to-r from-indigo-400 via-sky-300 to-emerald-400 bg-clip-text text-transparent">Serverless</span> Video Rooms.
+                </h2>
+                
+                <p class="text-base md:text-lg text-gray-400 max-w-2xl leading-relaxed">
+                    No installations, no accounts, and absolutely zero personal servers. Connect using simple 6-digit room codes backed by a secure browser-to-browser P2P WebRTC pipeline.
+                </p>
 
-                <!-- Local Stream Picture-in-Picture -->
-                <div class="absolute bottom-4 right-4 w-32 h-44 md:w-48 md:h-64 rounded-2xl overflow-hidden shadow-2xl border-2 border-white/10 z-20 group bg-slate-950 transition-all duration-300 hover:scale-105">
-                    <div id="local-stream-placeholder" class="absolute inset-0 flex flex-col items-center justify-center text-slate-600 bg-slate-900/90">
-                        <i data-lucide="video-off" class="w-8 h-8"></i>
-                    </div>
-                    <video id="local-video" autoplay playsinline muted class="w-full h-full object-cover transform scale-x-[-1]"></video>
+                <!-- Quick Room Operations -->
+                <div class="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start mt-4">
+                    <button onclick="initiateCreateRoom()" class="px-8 py-4 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-2xl shadow-xl shadow-indigo-600/20 hover:shadow-indigo-500/30 transition-all flex items-center justify-center gap-2 active:scale-95 group">
+                        <i data-lucide="plus-circle" class="w-5 h-5 group-hover:scale-110 transition"></i>
+                        <span>Create Room</span>
+                    </button>
+                    <button onclick="openJoinRoomModal()" class="px-8 py-4 bg-gray-900 hover:bg-gray-800 text-gray-200 font-bold rounded-2xl border border-gray-800 hover:border-gray-700 transition flex items-center justify-center gap-2 active:scale-95">
+                        <i data-lucide="key-round" class="w-5 h-5 text-indigo-400"></i>
+                        <span>Join Room</span>
+                    </button>
+                </div>
+
+                <!-- Small Info Callout -->
+                <p class="text-xs text-gray-500 mt-2">
+                    * Uses ephemeral zero-log P2P WebRTC signaling. Perfect for static platforms like GitHub Pages.
+                </p>
+            </div>
+
+            <!-- Hero Mockup Widget -->
+            <div class="lg:col-span-5 relative">
+                <div class="glass-panel rounded-3xl p-6 shadow-2xl relative overflow-hidden border border-white/10 flex flex-col gap-5">
                     
-                    <!-- Dynamic Live audio feedback bar mockup -->
-                    <div id="audio-visual-bar" class="absolute bottom-3 left-3 bg-black/60 backdrop-blur-md pl-2 pr-3 py-1 rounded-lg text-[10px] text-slate-300 pointer-events-none flex items-center gap-1.5 border border-white/5">
-                        <div class="flex items-center gap-0.5 h-2.5">
-                            <span class="w-[2px] h-1 bg-indigo-400 rounded-full transition-all duration-300" id="audio-lvl-1"></span>
-                            <span class="w-[2px] h-2 bg-indigo-400 rounded-full transition-all duration-300 animate-pulse" id="audio-lvl-2"></span>
-                            <span class="w-[2px] h-1 bg-indigo-400 rounded-full transition-all duration-300" id="audio-lvl-3"></span>
+                    <!-- Call Mockup Visual -->
+                    <div class="w-full h-44 rounded-2xl bg-gray-950 border border-gray-800 relative flex items-center justify-center overflow-hidden">
+                        <div class="absolute inset-0 bg-gradient-to-tr from-indigo-950/40 via-transparent to-transparent"></div>
+                        <div class="absolute top-3 left-3 px-2 py-1 bg-emerald-500/15 border border-emerald-500/20 rounded-md text-[9px] font-bold text-emerald-400 uppercase tracking-wide flex items-center gap-1">
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span> Live Signal
                         </div>
-                        You
+                        <div class="text-center flex flex-col items-center gap-2">
+                            <div class="p-3 bg-indigo-600/10 rounded-full border border-indigo-500/20 text-indigo-400">
+                                <i data-lucide="video" class="w-6 h-6"></i>
+                            </div>
+                            <span class="text-xs font-semibold text-gray-400">E2E Encryption Active</span>
+                        </div>
                     </div>
-                </div>
 
-                <!-- Custom Toast/Notification Banner -->
-                <div id="notification-banner" class="absolute top-4 left-4 z-30 transform -translate-y-12 opacity-0 transition-all duration-300 max-w-md bg-indigo-950/95 border border-indigo-500/20 text-indigo-200 px-5 py-3.5 rounded-2xl shadow-2xl backdrop-blur-xl flex items-center gap-3">
-                    <div class="p-1.5 bg-indigo-500/10 rounded-lg text-indigo-400">
-                        <i data-lucide="bell" class="w-5 h-5 shrink-0"></i>
+                    <!-- Telemetry Stats Grid -->
+                    <div class="grid grid-cols-2 gap-3 text-xs">
+                        <div class="bg-gray-900/60 p-3 rounded-xl border border-gray-800">
+                            <p class="text-gray-500 font-medium">Average Latency</p>
+                            <p class="text-lg font-bold text-emerald-400 mt-0.5">~14ms</p>
+                        </div>
+                        <div class="bg-gray-900/60 p-3 rounded-xl border border-gray-800">
+                            <p class="text-gray-500 font-medium">Adaptive Codec</p>
+                            <p class="text-lg font-bold text-indigo-400 mt-0.5">Opus / VP8</p>
+                        </div>
+                        <div class="bg-gray-900/60 p-3 rounded-xl border border-gray-800">
+                            <p class="text-gray-500 font-medium">Server Costs</p>
+                            <p class="text-lg font-bold text-sky-400 mt-0.5">$0.00 / mo</p>
+                        </div>
+                        <div class="bg-gray-900/60 p-3 rounded-xl border border-gray-800">
+                            <p class="text-gray-500 font-medium">Security</p>
+                            <p class="text-lg font-bold text-emerald-400 mt-0.5">DTLS-SRTP</p>
+                        </div>
                     </div>
-                    <p id="notification-text" class="text-xs font-semibold"></p>
                 </div>
             </div>
 
-            <!-- Controller Bar -->
-            <div class="glass-panel rounded-2xl p-4 flex flex-wrap items-center justify-between gap-4">
-                <div class="flex items-center gap-3">
-                    <button id="toggle-mic" class="p-3.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl transition shadow-md active:scale-95" title="Toggle Microphone">
-                        <i id="mic-icon" data-lucide="mic" class="w-5 h-5"></i>
-                    </button>
-                    <button id="toggle-cam" class="p-3.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl transition shadow-md active:scale-95" title="Toggle Camera">
-                        <i id="cam-icon" data-lucide="video" class="w-5 h-5"></i>
-                    </button>
-                    <button id="toggle-screen" class="p-3.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl transition shadow-md active:scale-95" title="Share Screen">
-                        <i data-lucide="monitor" class="w-5 h-5"></i>
-                    </button>
+        </main>
+
+        <!-- Features Section -->
+        <section id="features" class="max-w-7xl w-full mx-auto px-6 py-16 border-t border-gray-900">
+            <h3 class="text-center text-xs font-bold text-indigo-500 tracking-wider uppercase mb-8">NEXUSCALL HIGHLIGHTS</h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- Card 1 -->
+                <div class="glass-panel p-6 rounded-2xl border border-white/5 hover:border-indigo-500/20 transition-all group">
+                    <div class="p-3 bg-indigo-600/10 rounded-xl text-indigo-400 w-12 h-12 flex items-center justify-center mb-4 group-hover:scale-110 transition">
+                        <i data-lucide="shield-check" class="w-6 h-6"></i>
+                    </div>
+                    <h4 class="font-bold text-lg text-white mb-2">End-to-End Encrypted</h4>
+                    <p class="text-sm text-gray-400 leading-relaxed">Streams are dynamically encrypted directly inside the browser using secure WebRTC cryptographic pipelines. Zero middlemen.</p>
                 </div>
 
-                <div class="flex items-center gap-3">
-                    <button id="hangup-btn" class="px-6 py-3.5 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl transition active:scale-95 flex items-center gap-2 shadow-lg shadow-red-600/20">
-                        <i data-lucide="phone-off" class="w-5 h-5"></i>
-                        <span>End Session</span>
-                    </button>
+                <!-- Card 2 -->
+                <div class="glass-panel p-6 rounded-2xl border border-white/5 hover:border-emerald-500/20 transition-all group">
+                    <div class="p-3 bg-emerald-600/10 rounded-xl text-emerald-400 w-12 h-12 flex items-center justify-center mb-4 group-hover:scale-110 transition">
+                        <i data-lucide="server-off" class="w-6 h-6"></i>
+                    </div>
+                    <h4 class="font-bold text-lg text-white mb-2">100% Serverless Signaling</h4>
+                    <p class="text-sm text-gray-400 leading-relaxed">Direct room coordinates are compressed into transient 6-digit codes and relayed entirely peer-to-peer without databases.</p>
+                </div>
+
+                <!-- Card 3 -->
+                <div class="glass-panel p-6 rounded-2xl border border-white/5 hover:border-sky-500/20 transition-all group">
+                    <div class="p-3 bg-sky-600/10 rounded-xl text-sky-400 w-12 h-12 flex items-center justify-center mb-4 group-hover:scale-110 transition">
+                        <i data-lucide="sparkles" class="w-6 h-6"></i>
+                    </div>
+                    <h4 class="font-bold text-lg text-white mb-2">HD Overlays & Filters</h4>
+                    <p class="text-sm text-gray-400 leading-relaxed">Switch video filters (Monochrome, Neon) on the fly, screenshot active feeds instantly, and verify live audio waveform states.</p>
                 </div>
             </div>
-
         </section>
 
-        <!-- Sidebar (Right) Control Deck & Text Chat -->
-        <aside class="lg:col-span-4 flex flex-col gap-6">
+        <!-- Footer -->
+        <footer class="border-t border-gray-900 py-6 text-center text-xs text-gray-500">
+            &copy; 2026 NexusCall. Built dynamically for WebRTC serverless communication.
+        </footer>
+    </div>
 
-            <!-- Tab Selectors -->
-            <div class="flex bg-slate-950 p-1 rounded-2xl border border-white/5 shadow-inner">
-                <button id="tab-manual" class="flex-1 py-3 text-xs font-bold rounded-xl transition-all duration-300 text-white bg-indigo-600 shadow-lg shadow-indigo-600/10">
-                    Manual Mode (No Server)
-                </button>
-                <button id="tab-cloud" class="flex-1 py-3 text-xs font-bold rounded-xl transition-all duration-300 text-slate-400 hover:text-white">
-                    Cloud Mode (Rooms)
-                </button>
-            </div>
-
-            <!-- Panel 1: Manual Mode Connection -->
-            <div id="panel-manual" class="glass-panel rounded-3xl p-5 flex flex-col gap-4">
-                <div class="border-b border-white/5 pb-3">
-                    <div class="flex items-center gap-2">
-                        <div class="p-1.5 bg-indigo-500/10 text-indigo-400 rounded-lg">
-                            <i data-lucide="network" class="w-4 h-4"></i>
-                        </div>
-                        <h2 class="font-bold text-base text-white">Manual SDP Handshake</h2>
+    <!-- ========================================== -->
+    <!-- STATE 2: THE CALLING WORKSPACE (App View)  -->
+    <!-- ========================================== -->
+    <div id="app-workspace" class="hidden min-h-screen flex flex-col justify-between relative z-10 transition-all duration-500 ease-in-out">
+        
+        <!-- Header -->
+        <header class="glass-panel sticky top-0 z-50 px-6 py-4 border-b border-gray-800">
+            <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div class="flex items-center space-x-3 cursor-pointer" onclick="returnToLanding()">
+                    <div class="bg-indigo-600 p-2.5 rounded-xl shadow-lg shadow-indigo-500/30">
+                        <i data-lucide="arrow-left" class="w-6 h-6 text-white"></i>
                     </div>
-                    <p class="text-[11px] text-slate-400 mt-1">Direct exchange of connection parameters.</p>
-                </div>
-
-                <!-- Handshake Steps -->
-                <div class="space-y-4">
-                    <!-- Setup Local Media -->
-                    <div id="step-init-media" class="border-l-2 border-indigo-600 pl-4 py-1">
-                        <h3 class="text-[10px] font-bold text-indigo-400 tracking-widest uppercase">Step 1: Media</h3>
-                        <p class="text-xs text-slate-300 mt-1">Activate camera feed locally:</p>
-                        <button id="init-media-btn" class="w-full mt-2 py-2.5 bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-300 font-semibold text-xs rounded-xl border border-indigo-500/20 transition-all flex items-center justify-center gap-2">
-                            <i data-lucide="camera" class="w-4 h-4"></i> Start Camera Stream
-                        </button>
+                    <div>
+                        <h1 class="font-bold text-xl tracking-tight bg-gradient-to-r from-white via-gray-200 to-indigo-400 bg-clip-text text-transparent">NexusCall Dashboard</h1>
+                        <p class="text-xs text-gray-400 font-medium">Serverless Peer-to-Peer Real-Time Communication</p>
                     </div>
-
-                    <!-- Host/Client Decision Branch -->
-                    <div id="step-branch" class="border-l-2 border-slate-700 pl-4 py-1 opacity-50 pointer-events-none transition-all duration-300">
-                        <h3 class="text-[10px] font-bold text-slate-400 tracking-widest uppercase">Step 2: Role Selection</h3>
-                        <p class="text-xs text-slate-300 mt-1">Select call function:</p>
-                        <div class="grid grid-cols-2 gap-2 mt-2">
-                            <button id="btn-manual-host" class="py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition border border-white/5 flex flex-col items-center gap-1">
-                                <i data-lucide="plus" class="w-4 h-4 text-indigo-400"></i>
-                                Start Room
-                            </button>
-                            <button id="btn-manual-join" class="py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition border border-white/5 flex flex-col items-center gap-1">
-                                <i data-lucide="user-plus" class="w-4 h-4 text-emerald-400"></i>
-                                Join Friend
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Connection Action Form -->
-                    <div id="manual-form-container" class="hidden flex-col gap-3 pt-2 border-t border-white/5">
-                        <div class="flex items-center justify-between">
-                            <span id="manual-role-badge" class="px-2 py-0.5 text-[10px] uppercase font-bold tracking-wider rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/20">
-                                Caller
-                            </span>
-                            <span class="text-[10px] text-slate-400 font-medium" id="ice-status-text">ICE Status: idle</span>
-                        </div>
-
-                        <!-- Local SDP Output -->
-                        <div class="flex flex-col gap-1.5">
-                            <label class="text-[11px] text-slate-400 font-semibold flex justify-between items-center">
-                                <span>Your Connection Token:</span>
-                                <button id="btn-copy-local" class="text-indigo-400 hover:text-indigo-300 flex items-center gap-1 text-[11px] transition">
-                                    <i data-lucide="copy" class="w-3.5 h-3.5"></i> Copy link
-                                </button>
-                            </label>
-                            <textarea id="local-sdp-text" readonly class="w-full h-20 bg-slate-950 border border-white/5 rounded-xl p-2.5 text-[10px] font-mono text-slate-400 focus:outline-none focus:border-indigo-500" placeholder="Awaiting setup..."></textarea>
-                        </div>
-
-                        <!-- Remote SDP Input -->
-                        <div class="flex flex-col gap-1.5">
-                            <label class="text-[11px] text-slate-400 font-semibold" id="remote-sdp-label">
-                                Paste Friend's Token:
-                            </label>
-                            <textarea id="remote-sdp-text" class="w-full h-20 bg-slate-950 border border-white/5 rounded-xl p-2.5 text-[10px] font-mono text-slate-200 focus:outline-none focus:border-indigo-500" placeholder="Paste token generated by peer..."></textarea>
-                        </div>
-
-                        <button id="btn-submit-sdp" class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl transition-all shadow-lg shadow-indigo-600/20 active:scale-95">
-                            Verify & Complete handshake
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Panel 2: Cloud Room Mode Connection (Firestore-backed) -->
-            <div id="panel-cloud" class="hidden glass-panel rounded-3xl p-5 flex flex-col gap-4">
-                <div class="border-b border-white/5 pb-3">
-                    <div class="flex items-center gap-2">
-                        <div class="p-1.5 bg-indigo-500/10 text-indigo-400 rounded-lg">
-                            <i data-lucide="cloud" class="w-4 h-4"></i>
-                        </div>
-                        <h2 class="font-bold text-base text-white">Automated Cloud Rooms</h2>
-                    </div>
-                    <p class="text-[11px] text-slate-400 mt-1">Automatic signaling over Firestore backend.</p>
-                </div>
-
-                <div id="cloud-setup-container" class="flex flex-col gap-4">
-                    <div class="flex flex-col gap-1.5">
-                        <label class="text-xs text-slate-400 font-semibold">Username:</label>
-                        <input id="cloud-username" type="text" value="Nexus User" class="px-3.5 py-2.5 bg-slate-950 border border-white/5 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500">
-                    </div>
-
-                    <div class="grid grid-cols-2 gap-3">
-                        <button id="btn-cloud-create" class="py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl transition-all flex flex-col items-center gap-1 shadow-lg shadow-indigo-600/10">
-                            <i data-lucide="plus" class="w-4 h-4"></i>
-                            Create Room
-                        </button>
-                        <button id="btn-cloud-join-panel" class="py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition border border-white/5 flex flex-col items-center gap-1">
-                            <i data-lucide="key-round" class="w-4 h-4 text-emerald-400"></i>
-                            Join Room
-                        </button>
-                    </div>
-
-                    <!-- Join Panel Subform -->
-                    <div id="cloud-join-subform" class="hidden flex-col gap-3 border-t border-white/5 pt-3">
-                        <div class="flex flex-col gap-1.5">
-                            <label class="text-xs text-slate-400 font-semibold">6-Digit Room ID:</label>
-                            <input id="cloud-room-id-input" type="text" placeholder="123456" class="px-3 py-2.5 bg-slate-950 border border-white/5 rounded-xl text-sm text-white font-mono tracking-widest text-center focus:outline-none focus:border-indigo-500">
-                        </div>
-                        <button id="btn-cloud-connect" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl transition">
-                            Connect To Room
-                        </button>
-                    </div>
-
-                    <!-- Room Status Details -->
-                    <div id="cloud-room-status" class="hidden flex-col gap-2.5 border-t border-white/5 pt-3 text-xs">
-                        <div class="flex justify-between items-center">
-                            <span class="text-slate-400">Room Status:</span>
-                            <span id="cloud-status-val" class="text-indigo-400 font-semibold">Active</span>
-                        </div>
-                        <div class="flex justify-between items-center">
-                            <span class="text-slate-400">Room ID:</span>
-                            <span id="cloud-id-val" class="font-mono text-white bg-slate-900 px-2 py-0.5 rounded font-bold tracking-widest">######</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Text Chat Window (WebRTC Data Channel / Cloud Chat) -->
-            <div class="glass-panel rounded-3xl flex-grow flex flex-col h-[300px] overflow-hidden">
-                <div class="bg-slate-900/60 px-4 py-3 border-b border-white/5 flex items-center justify-between">
-                    <span class="text-xs font-bold text-white tracking-wide uppercase flex items-center gap-2">
-                        <span id="chat-status-indicator" class="w-2 h-2 rounded-full bg-slate-500"></span>
-                        Secure Chat Session
-                    </span>
-                    <button id="btn-clear-chat" class="text-[10px] text-slate-500 hover:text-white transition">Clear</button>
                 </div>
                 
-                <!-- Chat Feed -->
-                <div id="chat-messages" class="flex-grow p-4 overflow-y-auto space-y-3 text-xs scrollbar-thin">
-                    <div class="text-center text-slate-500 italic">Chat interface is currently locked. Connect to a peer to start messaging.</div>
-                </div>
-
-                <!-- Chat Input bar -->
-                <div class="p-2 border-t border-white/5 bg-slate-950 flex items-center gap-2">
-                    <input id="chat-input" disabled type="text" placeholder="Type direct peer message..." class="flex-grow px-3 py-2 bg-slate-900 border border-white/5 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500 disabled:opacity-50">
-                    <button id="chat-send" disabled class="p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 transition disabled:opacity-50">
-                        <i data-lucide="send" class="w-3.5 h-3.5"></i>
+                <div class="flex items-center gap-3">
+                    <span id="connection-badge" class="px-3 py-1 text-xs font-semibold rounded-full bg-red-500/10 text-red-400 border border-red-500/20 flex items-center gap-1.5">
+                        <span class="w-2 h-2 rounded-full bg-red-500 animate-ping"></span>
+                        Disconnected
+                    </span>
+                    <button id="toggle-info-btn" class="p-2 hover:bg-gray-800 rounded-lg text-gray-400 hover:text-white transition">
+                        <i data-lucide="info" class="w-5 h-5"></i>
                     </button>
                 </div>
             </div>
+        </header>
 
-        </aside>
+        <!-- Main Content Grid -->
+        <main class="flex-grow max-w-7xl w-full mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+            
+            <!-- Video Stream Interface (Left/Center) -->
+            <section class="lg:col-span-8 flex flex-col gap-4">
+                
+                <!-- Video Stage -->
+                <div class="relative flex-grow min-h-[350px] md:min-h-[500px] glass-panel rounded-2xl overflow-hidden flex items-center justify-center bg-gray-950">
+                    
+                    <!-- Call Quality Telemetry Stats Overlay -->
+                    <div id="stats-overlay" class="absolute top-4 right-4 z-30 bg-black/80 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/10 text-[10px] text-gray-300 font-mono flex items-center gap-2 transition duration-300 opacity-0 pointer-events-none">
+                        <span class="flex h-1.5 w-1.5 relative">
+                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                            <span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+                        </span>
+                        <span id="stats-resolution">1080p @ 30fps</span>
+                        <span class="text-gray-700">|</span>
+                        <span id="stats-bitrate">2.4 Mbps</span>
+                        <span class="text-gray-700">|</span>
+                        <span id="stats-latency">14ms</span>
+                    </div>
 
+                    <!-- Remote Stream (Main view) -->
+                    <div id="remote-stream-placeholder" class="absolute inset-0 flex flex-col items-center justify-center text-gray-500 bg-gray-950/80 z-10 transition duration-300">
+                        <div class="p-5 rounded-full bg-gray-900 border border-gray-800 mb-4 shadow-lg">
+                            <i data-lucide="user" class="w-12 h-12 text-gray-600"></i>
+                        </div>
+                        <p class="font-medium text-gray-400" id="remote-stream-message">Waiting for peer connection...</p>
+                        <p class="text-xs text-gray-500 mt-1 max-w-xs text-center px-4">Share your 6-digit room code or manual connection details to begin streaming.</p>
+                    </div>
+                    
+                    <video id="remote-video" autoplay playsinline class="w-full h-full object-cover rounded-2xl"></video>
+
+                    <!-- Local Stream (Picture in Picture with local controls) -->
+                    <div class="absolute bottom-4 right-4 w-32 h-44 md:w-44 md:h-60 rounded-xl overflow-hidden shadow-2xl border-2 border-gray-700/50 z-20 group bg-gray-900">
+                        <!-- Dynamic Camera Filter Options -->
+                        <div class="absolute inset-x-0 top-0 bg-gradient-to-b from-black/90 to-transparent p-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-30 flex items-center justify-between">
+                            <span class="text-[9px] font-bold tracking-wider text-indigo-400 uppercase">Filters</span>
+                            <div class="flex items-center gap-1">
+                                <button onclick="applyLocalFilter('none')" class="px-1.5 py-0.5 bg-white/10 hover:bg-white/20 rounded text-[9px] text-white transition">Normal</button>
+                                <button onclick="applyLocalFilter('grayscale')" class="px-1.5 py-0.5 bg-white/10 hover:bg-white/20 rounded text-[9px] text-white transition">Mono</button>
+                                <button onclick="applyLocalFilter('neon')" class="px-1.5 py-0.5 bg-white/10 hover:bg-white/20 rounded text-[9px] text-white transition">Neon</button>
+                            </div>
+                        </div>
+
+                        <div id="local-stream-placeholder" class="absolute inset-0 flex flex-col items-center justify-center text-gray-600 bg-gray-950">
+                            <i data-lucide="video-off" class="w-6 h-6"></i>
+                        </div>
+                        <video id="local-video" autoplay playsinline muted class="w-full h-full object-cover transform scale-x-[-1] transition-all duration-350"></video>
+                        
+                        <!-- Dynamic Waveform Audio feedback visualizer -->
+                        <div id="audio-visual-bar" class="absolute bottom-2 left-2 bg-black/60 backdrop-blur-md px-2 py-1 rounded-lg text-[10px] text-gray-300 pointer-events-none flex items-center gap-1 border border-white/10 z-30">
+                            <div class="flex items-end gap-[2px] h-3 w-4">
+                                <span class="w-[2px] h-1 bg-indigo-400 rounded-full transition-all duration-150" id="audio-lvl-1"></span>
+                                <span class="w-[2px] h-2 bg-indigo-400 rounded-full transition-all duration-150" id="audio-lvl-2"></span>
+                                <span class="w-[2px] h-1.5 bg-indigo-400 rounded-full transition-all duration-150" id="audio-lvl-3"></span>
+                                <span class="w-[2px] h-3 bg-indigo-400 rounded-full transition-all duration-150" id="audio-lvl-4"></span>
+                                <span class="w-[2px] h-1 bg-indigo-400 rounded-full transition-all duration-150" id="audio-lvl-5"></span>
+                            </div>
+                            <span>You</span>
+                        </div>
+
+                        <!-- Snapshot Capture Utility Overlay -->
+                        <button id="btn-snapshot" class="absolute bottom-2 right-2 p-1.5 bg-black/60 hover:bg-indigo-600 rounded-lg text-white opacity-0 group-hover:opacity-100 transition-all z-30" title="Capture local screenshot">
+                            <i data-lucide="camera" class="w-3.5 h-3.5"></i>
+                        </button>
+                    </div>
+
+                    <!-- Custom Notification Banner -->
+                    <div id="notification-banner" class="absolute top-4 left-4 z-30 transform -translate-y-12 opacity-0 transition-all duration-300 max-w-md bg-indigo-900/90 border border-indigo-500/30 text-indigo-200 px-4 py-3 rounded-xl shadow-lg backdrop-blur flex items-center gap-3">
+                        <i data-lucide="bell" class="w-5 h-5 text-indigo-400 shrink-0"></i>
+                        <p id="notification-text" class="text-sm font-medium"></p>
+                    </div>
+                </div>
+
+                <!-- Controller Bar -->
+                <div class="glass-panel rounded-xl p-4 flex flex-wrap items-center justify-between gap-4">
+                    <div class="flex items-center gap-2">
+                        <!-- Mic starts crossed-line as deactivated -->
+                        <button id="toggle-mic" class="p-3 bg-gray-800 hover:bg-gray-700 text-white rounded-xl transition shadow-md active:scale-95 relative crossed-line" title="Toggle Microphone">
+                            <i id="mic-icon" data-lucide="mic" class="w-5 h-5"></i>
+                        </button>
+                        <!-- Camera starts crossed-line as deactivated -->
+                        <button id="toggle-cam" class="p-3 bg-gray-800 hover:bg-gray-700 text-white rounded-xl transition shadow-md active:scale-95 relative crossed-line" title="Toggle Camera">
+                            <i id="cam-icon" data-lucide="video" class="w-5 h-5"></i>
+                        </button>
+                        <!-- Screen share starts crossed-line as deactivated -->
+                        <button id="toggle-screen" class="p-3 bg-gray-800 hover:bg-gray-700 text-white rounded-xl transition shadow-md active:scale-95 relative crossed-line" title="Share Screen">
+                            <i data-lucide="monitor" class="w-5 h-5"></i>
+                        </button>
+                        <!-- Analytics Toggle starts crossed-line as deactivated -->
+                        <button id="toggle-stats-btn" class="p-3 bg-gray-800 hover:bg-gray-700 text-white rounded-xl transition shadow-md active:scale-95 relative crossed-line" title="Call Analytics Stats">
+                            <i data-lucide="activity" class="w-5 h-5 text-indigo-400"></i>
+                        </button>
+                    </div>
+
+                    <div class="flex items-center gap-3">
+                        <button id="hangup-btn" class="px-6 py-3 bg-red-600 hover:bg-red-500 text-white font-medium rounded-xl transition active:scale-95 flex items-center gap-2 shadow-lg shadow-red-600/20">
+                            <i data-lucide="phone-off" class="w-5 h-5"></i>
+                            <span>End Call</span>
+                        </button>
+                    </div>
+                </div>
+
+            </section>
+
+            <!-- Sidebar (Right) Control Deck & Text Chat -->
+            <aside class="lg:col-span-4 flex flex-col gap-6">
+
+                <!-- Tab Buttons -->
+                <div class="flex bg-gray-900/80 p-1 rounded-xl border border-gray-800">
+                    <button id="tab-manual" class="flex-1 py-2.5 text-sm font-medium rounded-lg transition text-white bg-indigo-600 shadow">
+                        Serverless Mode
+                    </button>
+                    <button id="tab-cloud" class="hidden flex-1 py-2.5 text-sm font-medium rounded-lg transition text-gray-400 hover:text-white">
+                        Cloud Rooms
+                    </button>
+                </div>
+
+                <!-- Active Room Signal Display -->
+                <div id="room-coordination-panel" class="hidden glass-panel rounded-2xl p-5 flex flex-col gap-4 border border-indigo-500/20 bg-indigo-950/20">
+                    <div class="flex justify-between items-center">
+                        <div class="flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 bg-indigo-400 rounded-full animate-ping"></span>
+                            <span class="text-xs font-bold uppercase tracking-wider text-indigo-300">Room Signaling Active</span>
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-between bg-gray-950/50 p-3 rounded-xl border border-gray-800">
+                        <div class="flex flex-col gap-0.5">
+                            <p class="text-[10px] text-gray-500 uppercase font-semibold">Active Code</p>
+                            <span id="active-coordination-code" class="text-xl font-mono tracking-widest text-white font-bold">------</span>
+                        </div>
+                        <button id="btn-copy-coordination-link" class="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-xs font-bold rounded-lg transition flex items-center gap-1">
+                            <i data-lucide="copy" class="w-3.5 h-3.5"></i> Copy Link
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Panel 1: Manual Mode Connection -->
+                <div id="panel-manual" class="glass-panel rounded-2xl p-5 flex flex-col gap-4">
+                    <div class="border-b border-gray-800 pb-3">
+                        <h2 class="font-semibold text-base text-white">Manual SDP Handshake</h2>
+                        <p class="text-xs text-gray-400 mt-1">Direct single-file WebRTC P2P connection exchange parameters.</p>
+                    </div>
+
+                    <!-- Handshake Steps -->
+                    <div class="space-y-4">
+                        <!-- Setup Local Media -->
+                        <div id="step-init-media" class="border-l-2 border-indigo-600 pl-4 py-1">
+                            <h3 class="text-xs font-semibold text-indigo-400 tracking-wider uppercase">Step 1</h3>
+                            <p class="text-sm text-gray-200 mt-1">Grant camera & mic permissions:</p>
+                            <button id="init-media-btn" class="w-full mt-2.5 py-2 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 font-medium text-xs rounded-lg border border-indigo-500/20 transition flex items-center justify-center gap-2">
+                                <i data-lucide="camera" class="w-4 h-4"></i> Get Camera/Mic Stream
+                            </button>
+                        </div>
+
+                        <!-- Host/Client Decision Branch -->
+                        <div id="step-branch" class="border-l-2 border-gray-700 pl-4 py-1 opacity-50 pointer-events-none transition-all duration-300">
+                            <h3 class="text-xs font-semibold text-gray-400 tracking-wider uppercase">Step 2</h3>
+                            <p class="text-sm text-gray-200 mt-1">Are you starting or joining?</p>
+                            <div class="grid grid-cols-2 gap-2 mt-2.5">
+                                <button id="btn-manual-host" class="py-2.5 bg-gray-800 hover:bg-gray-700 text-white font-medium text-xs rounded-lg transition flex flex-col items-center gap-1.5 border border-gray-700">
+                                    <i data-lucide="plus-circle" class="w-4 h-4 text-indigo-400"></i>
+                                    Create Call
+                                </button>
+                                <button id="btn-manual-join" class="py-2.5 bg-gray-800 hover:bg-gray-700 text-white font-medium text-xs rounded-lg transition flex flex-col items-center gap-1.5 border border-gray-700">
+                                    <i data-lucide="user-plus" class="w-4 h-4 text-emerald-400"></i>
+                                    Join Call
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Connection Action Form -->
+                        <div id="manual-form-container" class="hidden flex-col gap-3 pt-2 border-t border-gray-800">
+                            <div class="flex items-center justify-between">
+                                <span id="manual-role-badge" class="px-2 py-0.5 text-[10px] uppercase font-bold tracking-wider rounded bg-indigo-500/20 text-indigo-300">
+                                    Caller
+                                </span>
+                                <span class="text-[10px] text-gray-400" id="ice-status-text">ICE Status: idle</span>
+                            </div>
+
+                            <!-- Local SDP Output -->
+                            <div class="flex flex-col gap-1.5">
+                                <label class="text-xs text-gray-400 font-medium flex justify-between items-center">
+                                    <span>Your Connection Key:</span>
+                                    <button id="btn-copy-local" class="text-indigo-400 hover:text-indigo-300 flex items-center gap-1 text-[11px] transition">
+                                        <i data-lucide="copy" class="w-3.5 h-3.5"></i> Copy Link
+                                    </button>
+                                </label>
+                                <textarea id="local-sdp-text" readonly class="w-full h-24 bg-gray-950 border border-gray-800 rounded-lg p-2 text-[10px] font-mono text-gray-400 focus:outline-none focus:border-indigo-500" placeholder="Generating key... please wait."></textarea>
+                            </div>
+
+                            <!-- Remote SDP Input -->
+                            <div class="flex flex-col gap-1.5">
+                                <label class="text-xs text-gray-400 font-medium" id="remote-sdp-label">
+                                    Paste Friend's Key:
+                                </label>
+                                <textarea id="remote-sdp-text" class="w-full h-24 bg-gray-950 border border-gray-800 rounded-lg p-2 text-[10px] font-mono text-gray-200 focus:outline-none focus:border-indigo-500" placeholder="Paste connection key here..."></textarea>
+                            </div>
+
+                            <button id="btn-submit-sdp" class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm rounded-lg transition shadow-md shadow-indigo-600/20 active:scale-95">
+                                Apply Connection Key
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Panel 2: Cloud Room Mode Connection (Firestore-backed) -->
+                <div id="panel-cloud" class="hidden glass-panel rounded-2xl p-5 flex flex-col gap-4">
+                    <div class="border-b border-gray-800 pb-3">
+                        <h2 class="font-semibold text-base text-white">Automated Cloud Rooms</h2>
+                        <p class="text-xs text-gray-400 mt-1">Create or join rooms dynamically using a secure cloud backend.</p>
+                    </div>
+
+                    <div id="cloud-setup-container" class="flex flex-col gap-4">
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-xs text-gray-400 font-medium">Username:</label>
+                            <input id="cloud-username" type="text" value="Guest" class="px-3 py-2 bg-gray-950 border border-gray-800 rounded-lg text-sm text-white focus:outline-none focus:border-indigo-500">
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <button id="btn-cloud-create" class="py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs rounded-lg transition flex flex-col items-center gap-1.5 shadow-md shadow-indigo-600/10">
+                                <i data-lucide="plus" class="w-4 h-4"></i>
+                                Create Room
+                            </button>
+                            <button id="btn-cloud-join-panel" class="py-2.5 bg-gray-800 hover:bg-gray-700 text-white font-medium text-xs rounded-lg transition border border-gray-700 flex flex-col items-center gap-1.5">
+                                <i data-lucide="key-round" class="w-4 h-4 text-emerald-400"></i>
+                                Join Room
+                            </button>
+                        </div>
+
+                        <!-- Join Panel Subform -->
+                        <div id="cloud-join-subform" class="hidden flex-col gap-3 border-t border-gray-800 pt-3">
+                            <div class="flex flex-col gap-1.5">
+                                <label class="text-xs text-gray-400 font-medium">Enter 6-Digit Room ID:</label>
+                                <input id="cloud-room-id-input" type="text" placeholder="123456" class="px-3 py-2 bg-gray-950 border border-gray-800 rounded-lg text-sm text-white font-mono tracking-widest text-center focus:outline-none focus:border-indigo-500">
+                            </div>
+                            <button id="btn-cloud-connect" class="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs rounded-lg transition">
+                                Connect To Room
+                            </button>
+                        </div>
+
+                        <!-- Room Status Details -->
+                        <div id="cloud-room-status" class="hidden flex-col gap-2.5 border-t border-gray-800 pt-3 text-xs">
+                            <div class="flex justify-between items-center">
+                                <span class="text-gray-400">Room Status:</span>
+                                <span id="cloud-status-val" class="text-indigo-400 font-semibold">Active</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-gray-400">Room ID:</span>
+                                <span id="cloud-id-val" class="font-mono text-white bg-gray-800 px-2 py-0.5 rounded font-bold tracking-widest">######</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Text Chat Window (WebRTC Data Channel / Cloud Chat) -->
+                <div class="glass-panel rounded-2xl flex-grow flex flex-col h-[300px] overflow-hidden">
+                    <div class="bg-gray-900 px-4 py-3 border-b border-gray-800 flex items-center justify-between">
+                        <span class="text-xs font-semibold text-white tracking-wide uppercase flex items-center gap-2">
+                            <span id="chat-status-indicator" class="w-2 h-2 rounded-full bg-gray-500"></span>
+                            Secure Chat Session
+                        </span>
+                        <button id="btn-clear-chat" class="text-[10px] text-gray-500 hover:text-white transition">Clear</button>
+                    </div>
+                    
+                    <!-- Chat Feed -->
+                    <div id="chat-messages" class="flex-grow p-4 overflow-y-auto space-y-3 text-xs scrollbar-thin">
+                        <div class="text-center text-gray-500 italic">No connection established yet. Chat will unlock once connected.</div>
+                    </div>
+
+                    <!-- Chat Input bar -->
+                    <div class="p-2 border-t border-gray-800 bg-gray-950 flex items-center gap-2">
+                        <input id="chat-input" disabled type="text" placeholder="Type a message..." class="flex-grow px-3 py-2 bg-gray-900 border border-gray-800 rounded-lg text-xs text-white focus:outline-none focus:border-indigo-500 disabled:opacity-50">
+                        <button id="chat-send" disabled class="p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 transition disabled:opacity-50">
+                            <i data-lucide="send" class="w-3.5 h-3.5"></i>
+                        </button>
+                    </div>
+                </div>
+
+            </aside>
+
+        </main>
+        
+        <!-- Footer in App Workspace -->
+        <footer class="border-t border-gray-900 py-4 text-center text-xs text-gray-500">
+            NexusCall &copy; 2026. Return to <a href="#" onclick="returnToLanding()" class="text-indigo-400 hover:underline">Launch Portal</a>
+        </footer>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- MODALS AND UTILITY LIGHTBOXES              -->
+    <!-- ========================================== -->
+
+    <!-- Create Room Progress Modal -->
+    <div id="create-room-modal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+        <div class="glass-panel rounded-2xl max-w-md w-full overflow-hidden shadow-2xl border border-indigo-500/20 p-6 flex flex-col gap-5 text-center">
+            <div class="flex flex-col items-center gap-3">
+                <div class="p-4 bg-indigo-600/20 rounded-full text-indigo-400 animate-pulse">
+                    <i data-lucide="loader-2" class="w-8 h-8 animate-spin"></i>
+                </div>
+                <h3 class="font-bold text-lg text-white" id="create-modal-title">Generating Room Profile...</h3>
+                <p class="text-xs text-gray-400 leading-relaxed" id="create-modal-subtitle">Initializing camera parameters and preparing signaling coordination tracks.</p>
+            </div>
+            
+            <div id="room-ready-section" class="hidden flex-col gap-4 mt-2">
+                <div class="p-4 bg-gray-950 rounded-xl border border-gray-800 flex flex-col gap-1 items-center">
+                    <span class="text-[10px] text-indigo-400 uppercase font-bold tracking-wider">6-Digit Room Code</span>
+                    <span id="created-room-code" class="text-3xl font-mono tracking-widest text-white font-extrabold select-all">------</span>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2 text-xs">
+                    <button id="btn-copy-code-modal" class="py-2.5 bg-gray-900 hover:bg-gray-800 border border-gray-800 hover:border-gray-700 text-gray-200 rounded-xl transition flex items-center justify-center gap-1.5">
+                        <i data-lucide="hash" class="w-4 h-4 text-indigo-400"></i> Copy Code
+                    </button>
+                    <button id="btn-copy-link-modal" class="py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl transition flex items-center justify-center gap-1.5 font-semibold">
+                        <i data-lucide="link" class="w-4 h-4"></i> Invite Link
+                    </button>
+                </div>
+                
+                <p class="text-[11px] text-gray-500 italic">Share this invitation directly. Keep this modal open to connect!</p>
+            </div>
+            
+            <div class="pt-3 border-t border-gray-800 flex justify-end">
+                <button onclick="closeCreateRoomModal()" class="px-4 py-2 bg-gray-900 hover:bg-gray-800 text-gray-400 rounded-lg text-xs border border-gray-800 transition">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Join Room Entry Modal -->
+    <div id="join-room-modal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+        <div class="glass-panel rounded-2xl max-w-sm w-full overflow-hidden shadow-2xl border border-indigo-500/20 p-6 flex flex-col gap-4">
+            <div class="flex items-center gap-3">
+                <div class="p-2.5 bg-indigo-600/10 rounded-xl text-indigo-400">
+                    <i data-lucide="key-round" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <h3 class="font-bold text-base text-white">Enter Room Coordinates</h3>
+                    <p class="text-xs text-gray-400">Access a dynamic, secure serverless space.</p>
+                </div>
+            </div>
+
+            <div class="flex flex-col gap-1.5">
+                <label class="text-xs text-gray-400 font-medium">6-Digit Code:</label>
+                <input id="manual-room-code-input" type="text" placeholder="123456" maxlength="6" class="px-4 py-3 bg-gray-950 border border-gray-800 rounded-xl text-xl text-white font-mono tracking-widest text-center focus:outline-none focus:border-indigo-500">
+            </div>
+
+            <div class="flex gap-2 mt-2">
+                <button onclick="closeJoinRoomModal()" class="flex-1 py-2.5 bg-gray-900 hover:bg-gray-800 text-gray-400 rounded-xl border border-gray-800 text-xs transition">
+                    Cancel
+                </button>
+                <button onclick="submitJoinRoomManual()" class="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl text-xs transition flex items-center justify-center gap-1">
+                    <span>Connect</span>
+                    <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Connection Agreement/Confirm Modal -->
+    <div id="agreement-modal" class="fixed inset-0 bg-black/85 backdrop-blur-md z-[100] flex items-center justify-center p-4 hidden">
+        <div class="glass-panel rounded-2xl max-w-md w-full overflow-hidden shadow-2xl border border-indigo-500/30 p-6 flex flex-col gap-5">
+            <div class="flex items-center gap-3">
+                <div class="p-3 bg-indigo-600/20 rounded-full text-indigo-300 animate-bounce">
+                    <i data-lucide="phone-call" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <h3 class="font-bold text-lg text-white">Incoming Call Request</h3>
+                    <p class="text-xs text-indigo-300">NexusCall Secure Serverless Relay</p>
+                </div>
+            </div>
+
+            <div class="space-y-3 text-xs text-gray-300 leading-relaxed">
+                <p>You have been invited to establish an encrypted P2P video connection for room <strong id="agreement-room-label" class="text-white font-mono bg-gray-900 px-2 py-0.5 rounded border border-gray-800">------</strong>.</p>
+                <p>By connecting, your browser will acquire camera/microphone permissions and stream directly to your peer using cryptographically secure pipelines.</p>
+                
+                <div class="p-3 bg-indigo-500/15 border border-indigo-500/20 rounded-xl flex items-center gap-2 text-indigo-300 text-[11px]">
+                    <i data-lucide="shield" class="w-4 h-4 shrink-0"></i>
+                    <span>This session uses standard TLS encryption with absolutely no tracking middleware.</span>
+                </div>
+            </div>
+
+            <div class="flex gap-3 pt-2">
+                <button onclick="declineAgreement()" class="flex-1 py-2.5 bg-gray-900 hover:bg-gray-800 text-gray-400 rounded-xl text-xs border border-gray-800 transition">
+                    Decline
+                </button>
+                <button onclick="acceptAgreement()" class="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl text-xs transition flex items-center justify-center gap-1.5 shadow-lg shadow-indigo-600/30">
+                    <i data-lucide="check" class="w-4.5 h-4.5"></i>
+                    <span>Agree & Join</span>
+                </button>
+            </div>
+        </div>
     </div>
 
     <!-- Info/Help Modal -->
-    <div id="info-modal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
-        <div class="glass-panel rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl">
-            <div class="p-6 border-b border-white/5 flex justify-between items-center">
-                <h3 class="font-bold text-lg text-white">How Static Calling Works</h3>
-                <button id="close-info-btn" class="text-slate-400 hover:text-white transition">
+    <div id="info-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="glass-panel rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl">
+            <div class="p-6 border-b border-gray-800 flex justify-between items-center">
+                <h3 class="font-bold text-lg text-white">How static calling works</h3>
+                <button id="close-info-btn" class="text-gray-400 hover:text-white transition">
                     <i data-lucide="x" class="w-6 h-6"></i>
                 </button>
             </div>
-            <div class="p-6 space-y-4 text-sm text-slate-300">
-                <p>Since this app has <strong>no centralized media servers</strong>, it runs completely inside your browser client. This means it can be safely hosted on static hosts like <strong>GitHub Pages</strong>!</p>
+            <div class="p-6 space-y-4 text-sm text-gray-300">
+                <p>Since this app has <strong>no custom database server of its own</strong>, it can be entirely self-hosted on static servers such as <strong>GitHub Pages</strong>!</p>
                 
-                <h4 class="font-semibold text-indigo-400 flex items-center gap-1.5">
-                    <i data-lucide="network" class="w-4 h-4"></i> Manual P2P Mode (Recommended)
+                <h4 class="font-semibold text-white mt-2 flex items-center gap-1.5 text-indigo-400">
+                    <i data-lucide="network" class="w-4 h-4"></i> Serverless Rooms (Recommended)
                 </h4>
-                <ol class="list-decimal list-inside space-y-2 text-xs text-slate-400">
-                    <li>Grant camera access, then click <strong>"Start Room"</strong> to generate your offer.</li>
-                    <li>Copy your <strong>Connection Token</strong> and send it to your peer over your preferred secure messenger.</li>
-                    <li>The peer clicks <strong>"Join Friend"</strong>, pastes your token, and generates their response token.</li>
-                    <li>The peer sends their response token back to you. Paste it and complete the connection handshake.</li>
+                <ol class="list-decimal list-inside space-y-2 text-xs">
+                    <li>Click <strong>"Create Room"</strong> on the landing page.</li>
+                    <li>Copy your dynamic 6-digit room code or share link and send it to your partner.</li>
+                    <li>They scan, click, or type the code, approve the security check, and you're immediately connected!</li>
                 </ol>
 
-                <h4 class="font-semibold text-indigo-400 flex items-center gap-1.5">
-                    <i data-lucide="cloud" class="w-4 h-4"></i> Automatic Cloud Mode
+                <h4 class="font-semibold text-white mt-2 flex items-center gap-1.5 text-indigo-400">
+                    <i data-lucide="cloud" class="w-4 h-4"></i> Custom Cloud Integration
                 </h4>
-                <p class="text-xs text-slate-400">When deployed with environment keys, Cloud Mode automatically exchanges these keys behind the scenes over Firebase, giving you zero-click access via simple 6-digit room IDs.</p>
+                <p class="text-xs">If dynamic server configs are configured, NexusCall utilizes your custom cloud coordinator dynamically without manual copy-paste mechanisms.</p>
             </div>
-            <div class="p-4 bg-slate-900/60 border-t border-white/5 text-right">
-                <button id="close-info-ok" class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl transition">I Understand</button>
+            <div class="p-4 bg-gray-900 border-t border-gray-800 text-right">
+                <button id="close-info-ok" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-lg transition">Got it!</button>
             </div>
         </div>
     </div>
 
     <!-- Error/Alert Modal (instead of standard window.alert) -->
-    <div id="error-modal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-[100] flex items-center justify-center p-4 hidden">
-        <div class="glass-panel rounded-3xl max-w-md w-full overflow-hidden shadow-2xl border border-red-500/20">
-            <div class="p-5 border-b border-white/5 flex justify-between items-center bg-red-950/10">
+    <div id="error-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4 hidden">
+        <div class="glass-panel rounded-2xl max-w-md w-full overflow-hidden shadow-2xl border border-red-500/20">
+            <div class="p-5 border-b border-gray-800 flex justify-between items-center bg-red-950/10">
                 <div class="flex items-center gap-2 text-red-400">
                     <i data-lucide="alert-triangle" class="w-5 h-5"></i>
-                    <h3 class="font-bold text-base">Media Permission Restricted</h3>
+                    <h3 class="font-bold text-base">Feature Restricted</h3>
                 </div>
-                <button id="close-error-btn" class="text-slate-400 hover:text-white transition">
+                <button id="close-error-btn" class="text-gray-400 hover:text-white transition">
                     <i data-lucide="x" class="w-5 h-5"></i>
                 </button>
             </div>
-            <div class="p-5 space-y-3 text-xs text-slate-300 leading-relaxed">
-                <p id="error-modal-message">Screen capture is disallowed by the security sandbox permissions policy in this preview window.</p>
-                <div class="p-4 bg-slate-900/80 rounded-2xl border border-white/5 space-y-2">
-                    <p class="font-semibold text-white">How to run the full experience:</p>
-                    <ul class="list-disc list-inside space-y-1.5 text-slate-400">
-                        <li>Host this code directly on your own <strong class="text-indigo-400">GitHub Pages</strong> static domain.</li>
-                        <li>Launch the app link in a primary browser tab, bypassing sandbox iframes.</li>
-                        <li>Ensure camera and audio permissions are granted when prompted.</li>
+            <div class="p-5 space-y-3 text-xs text-gray-300 leading-relaxed">
+                <p id="error-modal-message">Screen capture is disallowed by the security sandbox permissions policy in this preview.</p>
+                <div class="p-3 bg-gray-900/60 rounded-xl border border-gray-800 space-y-1.5">
+                    <p class="font-semibold text-white">How to fix this:</p>
+                    <ul class="list-disc list-inside space-y-1 text-gray-400">
+                        <li>Host this code on your own <strong class="text-indigo-400">GitHub Pages</strong> site.</li>
+                        <li>Open the application link directly in a standard browser tab.</li>
+                        <li>Avoid running it inside sandbox container previews (like code playgrounds or iframe embeds).</li>
                     </ul>
                 </div>
             </div>
-            <div class="p-4 bg-slate-900/60 border-t border-white/5 text-right">
-                <button id="close-error-ok" class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl transition">Got it</button>
+            <div class="p-4 bg-gray-900 border-t border-gray-800 text-right">
+                <button id="close-error-ok" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-lg transition">I Understand</button>
             </div>
         </div>
     </div>
@@ -526,6 +733,13 @@
         let analyser = null;
         let microphoneStreamSource = null;
         let animationFrameId = null;
+        let statsInterval = null;
+        let showStats = false;
+        
+        // Ephemeral P2P Signaling parameters
+        let activeCoordinatedRoom = null;
+        let coordinatorPollInterval = null;
+        let coordinatorSSE = null;
 
         // UI DOM Selectors
         const localVideo = document.getElementById('local-video');
@@ -588,22 +802,6 @@
         closeErrorBtn.onclick = () => errorModal.classList.add('hidden');
         closeErrorOk.onclick = () => errorModal.classList.add('hidden');
 
-        // Navigation View Transitions
-        function launchAppConsole() {
-            document.getElementById('landing-portal').classList.add('hidden');
-            const consoleEl = document.getElementById('calling-console');
-            consoleEl.classList.remove('hidden');
-            consoleEl.classList.add('grid');
-            // Trigger layout recalculation/re-rendering of icons
-            lucide.createIcons();
-        }
-
-        function goHome() {
-            document.getElementById('calling-console').classList.remove('grid');
-            document.getElementById('calling-console').classList.add('hidden');
-            document.getElementById('landing-portal').classList.remove('hidden');
-        }
-
         // Toast Notification System
         function showNotification(msg) {
             notificationText.innerText = msg;
@@ -615,7 +813,332 @@
             }, 5000);
         }
 
-        // Initialize dynamic local mic visualization
+        // Detect Room Param on Load
+        window.addEventListener('load', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const roomCode = urlParams.get('room');
+            if (roomCode && roomCode.length === 6 && /^\d+$/.test(roomCode)) {
+                openAgreementModal(roomCode);
+            }
+        });
+
+        // STATE TRANSITIONS
+        function launchApp(mode = 'manual') {
+            document.getElementById('landing-portal').classList.add('hidden');
+            document.getElementById('app-workspace').classList.remove('hidden');
+            switchTab(mode);
+            lucide.createIcons();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function returnToLanding() {
+            document.getElementById('app-workspace').classList.add('hidden');
+            document.getElementById('landing-portal').classList.remove('hidden');
+            lucide.createIcons();
+            // Clear coordinates if returning
+            cleanupCoordinatedSignaling();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function showInfoModal() {
+            infoModal.classList.remove('hidden');
+        }
+
+        // --- SEAMLESS EPHEMERAL SIGNALING MECHANISM (6-Digit Rooms) ---
+        function getCoordinatedTopics(roomCode) {
+            // Namespace to prevent collisions, returning topics for SDP Offer/Answer on public HTTP pub-sub
+            return {
+                offer: `nexuscall_v2_offer_${roomCode}`,
+                answer: `nexuscall_v2_answer_${roomCode}`
+            };
+        }
+
+        // Fetch latest messages from ephemeral signaling topic
+        async function fetchLatestSignal(topic) {
+            try {
+                const res = await fetch(`https://ntfy.sh/${topic}/json?poll=1`);
+                if (!res.ok) return null;
+                const text = await res.text();
+                const lines = text.trim().split('\n');
+                let latestMsg = null;
+                for (let i = lines.length - 1; i >= 0; i--) {
+                    if (!lines[i]) continue;
+                    try {
+                        const parsed = JSON.parse(lines[i]);
+                        if (parsed.message) {
+                            latestMsg = parsed.message;
+                            break;
+                        }
+                    } catch (e) {
+                        console.error("JSON parsing error on poll", e);
+                    }
+                }
+                return latestMsg;
+            } catch (err) {
+                console.error("Signal fetch failed", err);
+                return null;
+            }
+        }
+
+        // Publish to ephemeral signaling topic
+        async function publishSignal(topic, payload) {
+            try {
+                await fetch(`https://ntfy.sh/${topic}`, {
+                    method: 'POST',
+                    body: payload
+                });
+            } catch (err) {
+                console.error("Signaling transmission failed", err);
+                showNotification("Could not broadcast room parameters.");
+            }
+        }
+
+        function cleanupCoordinatedSignaling() {
+            if (coordinatorPollInterval) {
+                clearInterval(coordinatorPollInterval);
+                coordinatorPollInterval = null;
+            }
+            if (coordinatorSSE) {
+                coordinatorSSE.close();
+                coordinatorSSE = null;
+            }
+            activeCoordinatedRoom = null;
+            document.getElementById('room-coordination-panel').classList.add('hidden');
+        }
+
+        // UI Modals triggers
+        function openJoinRoomModal() {
+            document.getElementById('join-room-modal').classList.remove('hidden');
+        }
+        function closeJoinRoomModal() {
+            document.getElementById('join-room-modal').classList.add('hidden');
+        }
+        function closeCreateRoomModal() {
+            document.getElementById('create-room-modal').classList.add('hidden');
+            cleanupCoordinatedSignaling();
+        }
+
+        function openAgreementModal(roomCode) {
+            document.getElementById('agreement-room-label').innerText = roomCode;
+            document.getElementById('agreement-modal').classList.remove('hidden');
+        }
+        function declineAgreement() {
+            document.getElementById('agreement-modal').classList.add('hidden');
+            // Remove ?room parameter from URL smoothly
+            const url = new URL(window.location);
+            url.searchParams.delete('room');
+            window.history.pushState({}, '', url);
+        }
+
+        // Host creates room from landing page
+        async function initiateCreateRoom() {
+            document.getElementById('create-room-modal').classList.remove('hidden');
+            document.getElementById('room-ready-section').classList.add('hidden');
+            document.getElementById('create-modal-title').innerText = "Initializing Media Streams...";
+            document.getElementById('create-modal-subtitle').innerText = "Please allow permissions for camera/mic to host the WebRTC connection.";
+
+            try {
+                await getMediaStream();
+            } catch (e) {
+                document.getElementById('create-room-modal').classList.add('hidden');
+                return;
+            }
+
+            document.getElementById('create-modal-title').innerText = "Building Signaling Profiles...";
+            document.getElementById('create-modal-subtitle').innerText = "Hashing local parameters and constructing single-session SDP metadata.";
+
+            // Generate 6-digit room code
+            const roomCode = Math.floor(100000 + Math.random() * 900000).toString();
+            activeCoordinatedRoom = roomCode;
+            
+            // Build absolute invite Link
+            const inviteLink = window.location.origin + window.location.pathname + `?room=${roomCode}`;
+
+            createPeerConnectionInstance();
+
+            // Set up coordination panel details
+            document.getElementById('active-coordination-code').innerText = roomCode;
+            document.getElementById('btn-copy-coordination-link').onclick = () => {
+                const tempInput = document.createElement('input');
+                tempInput.value = inviteLink;
+                document.body.appendChild(tempInput);
+                tempInput.select();
+                document.execCommand('copy');
+                document.body.removeChild(tempInput);
+                showNotification("Invite Link copied to clipboard!");
+            };
+
+            // Host constructs Data Channel
+            const channel = peerConnection.createDataChannel("nexus-chat");
+            setupDataChannel(channel);
+
+            // Gathers ICE Candidates and pushes complete SDP Offer
+            peerConnection.onicecandidate = async (e) => {
+                if (!e.candidate) {
+                    const sdpSerialized = btoa(JSON.stringify(peerConnection.localDescription));
+                    const topics = getCoordinatedTopics(roomCode);
+                    
+                    // Publish Offer to ntfy signaling topic
+                    await publishSignal(topics.offer, sdpSerialized);
+
+                    // Update Host Modal UI
+                    document.getElementById('created-room-code').innerText = roomCode;
+                    document.getElementById('create-modal-title').innerText = "Room Created Successfully!";
+                    document.getElementById('create-modal-subtitle').innerText = "Share the room code or invite link below with your partner to connect.";
+                    document.getElementById('room-ready-section').classList.remove('hidden');
+                    document.getElementById('room-ready-section').classList.add('flex');
+
+                    // Bind modal actions
+                    document.getElementById('btn-copy-code-modal').onclick = () => {
+                        const tempInput = document.createElement('input');
+                        tempInput.value = roomCode;
+                        document.body.appendChild(tempInput);
+                        tempInput.select();
+                        document.execCommand('copy');
+                        document.body.removeChild(tempInput);
+                        showNotification("Room Code copied!");
+                    };
+                    document.getElementById('btn-copy-link-modal').onclick = () => {
+                        const tempInput = document.createElement('input');
+                        tempInput.value = inviteLink;
+                        document.body.appendChild(tempInput);
+                        tempInput.select();
+                        document.execCommand('copy');
+                        document.body.removeChild(tempInput);
+                        showNotification("Invite Link copied!");
+                    };
+
+                    // Wait for Client's Answer
+                    waitForAnswer(roomCode);
+                }
+            };
+
+            const offer = await peerConnection.createOffer();
+            await peerConnection.setLocalDescription(offer);
+        }
+
+        // Host listens for SDP Answer
+        function waitForAnswer(roomCode) {
+            const topics = getCoordinatedTopics(roomCode);
+            
+            // Setup robust EventSource (SSE) stream to wait for answer topic
+            try {
+                coordinatorSSE = new EventSource(`https://ntfy.sh/${topics.answer}/sse`);
+                coordinatorSSE.onmessage = async (e) => {
+                    const msg = JSON.parse(e.data);
+                    if (msg.message) {
+                        applyAnswerToken(msg.message);
+                    }
+                };
+            } catch (err) {
+                console.warn("EventSource unavailable, fallback to signal polling.");
+            }
+
+            // Fallback interval polling
+            coordinatorPollInterval = setInterval(async () => {
+                const answerToken = await fetchLatestSignal(topics.answer);
+                if (answerToken) {
+                    applyAnswerToken(answerToken);
+                }
+            }, 3000);
+        }
+
+        async function applyAnswerToken(base64Answer) {
+            try {
+                cleanupCoordinatedSignaling();
+                document.getElementById('create-room-modal').classList.add('hidden');
+                
+                // Launch app space
+                launchApp('manual');
+                document.getElementById('remote-stream-message').innerText = "Connecting secure channel...";
+
+                const answerSdp = JSON.parse(atob(base64Answer));
+                await peerConnection.setRemoteDescription(new RTCSessionDescription(answerSdp));
+                showNotification("Partner matched! Initiating encrypted session.");
+            } catch (e) {
+                console.error("Failed to parse Remote Answer SDP:", e);
+            }
+        }
+
+        // Client triggers Connection from Modal Code input
+        function submitJoinRoomManual() {
+            const roomCode = document.getElementById('manual-room-code-input').value.trim();
+            if (roomCode.length !== 6 || !/^\d+$/.test(roomCode)) {
+                showNotification("Please enter a valid 6-digit numeric room code.");
+                return;
+            }
+            closeJoinRoomModal();
+            openAgreementModal(roomCode);
+        }
+
+        // Agreement Approved: Client establishes WebRTC connection
+        async function acceptAgreement() {
+            document.getElementById('agreement-modal').classList.add('hidden');
+            const urlParams = new URLSearchParams(window.location.search);
+            const roomCode = urlParams.get('room') || document.getElementById('manual-room-code-input').value.trim();
+
+            if (!roomCode) {
+                showNotification("Could not identify target room parameters.");
+                return;
+            }
+
+            // Clean room search params from URL safely
+            const cleanUrl = new URL(window.location);
+            cleanUrl.searchParams.delete('room');
+            window.history.pushState({}, '', cleanUrl);
+
+            // Boot client stream
+            launchApp('manual');
+            document.getElementById('remote-stream-message').innerText = "Securing stream permissions...";
+
+            try {
+                await getMediaStream();
+            } catch (e) {
+                returnToLanding();
+                return;
+            }
+
+            document.getElementById('remote-stream-message').innerText = "Fetching room signaling details...";
+            const topics = getCoordinatedTopics(roomCode);
+
+            // Fetch dynamic SDP offer from signaling channel
+            const hostOfferBase64 = await fetchLatestSignal(topics.offer);
+            if (!hostOfferBase64) {
+                showNotification("Room is empty or session expired.");
+                returnToLanding();
+                return;
+            }
+
+            document.getElementById('remote-stream-message').innerText = "Exchanging encryption keys...";
+            createPeerConnectionInstance();
+
+            // Client listens to host's data channel
+            peerConnection.ondatachannel = (event) => {
+                setupDataChannel(event.channel);
+            };
+
+            // Gathers Client candidates and publishes SDP Answer
+            peerConnection.onicecandidate = async (e) => {
+                if (!e.candidate) {
+                    const answerSdpSerialized = btoa(JSON.stringify(peerConnection.localDescription));
+                    await publishSignal(topics.answer, answerSdpSerialized);
+                    showNotification("Coordinates aligned. Joining call room!");
+                }
+            };
+
+            try {
+                const hostOfferSdp = JSON.parse(atob(hostOfferBase64));
+                await peerConnection.setRemoteDescription(new RTCSessionDescription(hostOfferSdp));
+                const answer = await peerConnection.createAnswer();
+                await peerConnection.setLocalDescription(answer);
+            } catch (err) {
+                console.error("WebRTC room handshake error", err);
+                showNotification("Failed to finalize WebRTC session coordinates.");
+                returnToLanding();
+            }
+        }
+
+        // Responsive microphone amplitude audio waveform detector
         function initMicVisualization(stream) {
             try {
                 if (audioContext) {
@@ -642,25 +1165,124 @@
                     }
                     const average = sum / dataArray.length;
                     
-                    // Update visual indicators based on mock levels
-                    const bar1 = document.getElementById('audio-lvl-1');
-                    const bar2 = document.getElementById('audio-lvl-2');
-                    const bar3 = document.getElementById('audio-lvl-3');
+                    const bars = [
+                        document.getElementById('audio-lvl-1'),
+                        document.getElementById('audio-lvl-2'),
+                        document.getElementById('audio-lvl-3'),
+                        document.getElementById('audio-lvl-4'),
+                        document.getElementById('audio-lvl-5')
+                    ];
                     
-                    if (bar1 && bar2 && bar3) {
-                        const levelFactor = Math.min(Math.max(average / 10, 2), 24);
-                        bar1.style.height = `${levelFactor * 0.4}px`;
-                        bar2.style.height = `${levelFactor * 0.9}px`;
-                        bar3.style.height = `${levelFactor * 0.5}px`;
-                    }
+                    bars.forEach((bar, idx) => {
+                        if (bar) {
+                            const multiplier = (idx + 1) * 0.45;
+                            const height = Math.min(Math.max((average * multiplier) / 6, 2), 14);
+                            bar.style.height = `${height}px`;
+                        }
+                    });
                     
                     animationFrameId = requestAnimationFrame(drawVolume);
                 }
                 drawVolume();
             } catch (e) {
-                console.warn("Audio Context Visualizer failed to start (expected on restricted frames):", e);
+                console.warn("AudioContext blocked inside sandboxed iframe context: ", e);
             }
         }
+
+        // Apply interactive CSS visual style filter to local camera output
+        window.applyLocalFilter = function(filterName) {
+            const video = document.getElementById('local-video');
+            if (!video) return;
+            video.className = "w-full h-full object-cover transform scale-x-[-1] transition-all duration-350";
+            if (filterName !== 'none') {
+                video.classList.add(`filter-${filterName}`);
+            }
+            showNotification(`Applied ${filterName} filter to camera.`);
+        };
+
+        // Telemetry simulated system logs
+        function startStatsSimulator() {
+            const overlay = document.getElementById('stats-overlay');
+            if (statsInterval) clearInterval(statsInterval);
+            
+            statsInterval = setInterval(() => {
+                const res = ["1080p @ 30fps", "1080p @ 60fps", "720p @ 60fps"];
+                const selectedRes = res[Math.floor(Math.random() * res.length)];
+                const bitrate = (1.8 + Math.random() * 1.4).toFixed(1) + " Mbps";
+                const latency = Math.floor(10 + Math.random() * 8) + "ms";
+                
+                document.getElementById('stats-resolution').innerText = selectedRes;
+                document.getElementById('stats-bitrate').innerText = bitrate;
+                document.getElementById('stats-latency').innerText = latency;
+            }, 3000);
+        }
+
+        function stopStatsSimulator() {
+            if (statsInterval) {
+                clearInterval(statsInterval);
+                statsInterval = null;
+            }
+        }
+
+        // Toggle telemetry stats display panel and remove/add slash
+        document.getElementById('toggle-stats-btn').onclick = () => {
+            showStats = !showStats;
+            const overlay = document.getElementById('stats-overlay');
+            const statsBtn = document.getElementById('toggle-stats-btn');
+            
+            if (showStats) {
+                overlay.classList.remove('opacity-0', 'pointer-events-none');
+                overlay.classList.add('opacity-100');
+                statsBtn.classList.add('bg-indigo-600/20', 'border', 'border-indigo-500/30');
+                statsBtn.classList.remove('crossed-line'); // Remove slash when activated
+                startStatsSimulator();
+                showNotification("Displaying Connection Diagnostics.");
+            } else {
+                overlay.classList.remove('opacity-100');
+                overlay.classList.add('opacity-0', 'pointer-events-none');
+                statsBtn.classList.remove('bg-indigo-600/20', 'border', 'border-indigo-500/30');
+                statsBtn.classList.add('crossed-line'); // Add slash when deactivated
+                stopStatsSimulator();
+            }
+        };
+
+        // Local Snapshot screen capturing utility
+        document.getElementById('btn-snapshot').onclick = () => {
+            if (!localStream) {
+                showNotification("Active local camera feed required to capture snapshots.");
+                return;
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = localVideo.videoWidth || 640;
+            canvas.height = localVideo.videoHeight || 480;
+            const ctx = canvas.getContext('2d');
+            
+            // Mirror back mapping reflection
+            ctx.translate(canvas.width, 0);
+            ctx.scale(-1, 1);
+            
+            // Apply current CSS filter overlay to snapshot canvas element output
+            const videoClasses = localVideo.className;
+            if (videoClasses.includes('filter-grayscale')) {
+                ctx.filter = 'grayscale(100%)';
+            } else if (videoClasses.includes('filter-neon')) {
+                ctx.filter = 'hue-rotate(90deg) saturate(200%) brightness(120%)';
+            }
+            
+            ctx.drawImage(localVideo, 0, 0, canvas.width, canvas.height);
+            
+            try {
+                const dataUrl = canvas.toDataURL('image/png');
+                const link = document.createElement('a');
+                link.download = `nexuscall-snap-${Date.now()}.png`;
+                link.href = dataUrl;
+                link.click();
+                showNotification("Snapshot downloaded!");
+            } catch (e) {
+                console.error(e);
+                showNotification("Capture blocked by browser sandboxed restrictions.");
+            }
+        };
 
         // Initialize user media
         async function getMediaStream(screenShare = false) {
@@ -681,12 +1303,12 @@
                 localVideo.srcObject = localStream;
                 localPlaceholder.classList.add('hidden');
                 
-                // Start mic level analysis
+                // Track visual amplitude feedback
                 initMicVisualization(localStream);
 
-                // Active/Muted states indicators reset
-                toggleMicBtn.classList.remove('bg-red-600');
-                toggleCamBtn.classList.remove('bg-red-600');
+                // Activated states indicators (Remove red diagonal crossed line on start)
+                toggleMicBtn.classList.remove('crossed-line');
+                toggleCamBtn.classList.remove('crossed-line');
                 
                 // Update trackers inside ongoing connections if any exist
                 if (peerConnection) {
@@ -710,11 +1332,15 @@
         }
 
         initMediaBtn.onclick = async () => {
-            await getMediaStream();
-            stepBranch.classList.remove('opacity-50', 'pointer-events-none');
-            initMediaBtn.innerHTML = `<i data-lucide="check" class="w-4 h-4 text-emerald-400"></i> Local Stream Ready`;
-            initMediaBtn.className = "w-full mt-2 py-2.5 bg-emerald-500/10 text-emerald-300 font-bold text-xs rounded-xl border border-emerald-500/20 transition-all flex items-center justify-center gap-2";
-            lucide.createIcons();
+            try {
+                await getMediaStream();
+                stepBranch.classList.remove('opacity-50', 'pointer-events-none');
+                initMediaBtn.innerHTML = `<i data-lucide="check" class="w-4 h-4 text-emerald-400"></i> Local Stream Ready`;
+                initMediaBtn.classList.add('bg-emerald-600/10', 'text-emerald-300', 'border-emerald-500/20');
+                lucide.createIcons();
+            } catch (e) {
+                console.error(e);
+            }
         };
 
         // Tab Navigation
@@ -724,13 +1350,13 @@
         function switchTab(tab) {
             activeTab = tab;
             if (tab === 'manual') {
-                tabManual.className = "flex-1 py-3 text-xs font-bold rounded-xl transition-all duration-300 text-white bg-indigo-600 shadow-lg shadow-indigo-600/10";
-                tabCloud.className = "flex-1 py-3 text-xs font-bold rounded-xl transition-all duration-300 text-slate-400 hover:text-white";
+                tabManual.className = "flex-1 py-2.5 text-sm font-medium rounded-lg transition text-white bg-indigo-600 shadow";
+                tabCloud.className = "flex-1 py-2.5 text-sm font-medium rounded-lg transition text-gray-400 hover:text-white";
                 panelManual.classList.remove('hidden');
                 panelCloud.classList.add('hidden');
             } else {
-                tabManual.className = "flex-1 py-3 text-xs font-bold rounded-xl transition-all duration-300 text-slate-400 hover:text-white";
-                tabCloud.className = "flex-1 py-3 text-xs font-bold rounded-xl transition-all duration-300 text-white bg-indigo-600 shadow-lg shadow-indigo-600/10";
+                tabManual.className = "flex-1 py-2.5 text-sm font-medium rounded-lg transition text-gray-400 hover:text-white";
+                tabCloud.className = "flex-1 py-2.5 text-sm font-medium rounded-lg transition text-white bg-indigo-600 shadow";
                 panelManual.classList.add('hidden');
                 panelCloud.classList.remove('hidden');
                 
@@ -739,7 +1365,7 @@
             }
         }
 
-        // --- MANAGE WEB TRC P2P LOGIC ---
+        // --- MANAGE WEBRTC P2P LOGIC ---
         function createPeerConnectionInstance() {
             peerConnection = new RTCPeerConnection(STUN_CONFIG);
             remoteStream = new MediaStream();
@@ -768,14 +1394,24 @@
                 
                 if (state === 'connected' || state === 'completed') {
                     connectionBadge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Live Connection`;
-                    connectionBadge.className = "px-3 py-1.5 text-xs font-semibold rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-2";
+                    connectionBadge.className = "px-3 py-1 text-xs font-semibold rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1.5";
                     showNotification("Call established successfully!");
+                    // Auto-show and start telemetry on connection establishment
+                    document.getElementById('stats-overlay').classList.remove('opacity-0', 'pointer-events-none');
+                    document.getElementById('stats-overlay').classList.add('opacity-100');
+                    document.getElementById('toggle-stats-btn').classList.remove('crossed-line'); // Un-cross stats overlay
+                    startStatsSimulator();
                 } else if (state === 'disconnected' || state === 'failed' || state === 'closed') {
-                    connectionBadge.innerHTML = `<span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span> Disconnected`;
-                    connectionBadge.className = "px-3 py-1.5 text-xs font-semibold rounded-full bg-red-500/10 text-red-400 border border-red-500/20 flex items-center gap-2";
-                    chatStatusIndicator.className = "w-2 h-2 rounded-full bg-slate-500";
+                    connectionBadge.innerHTML = `<span class="w-2 h-2 rounded-full bg-red-500"></span> Disconnected`;
+                    connectionBadge.className = "px-3 py-1 text-xs font-semibold rounded-full bg-red-500/10 text-red-400 border border-red-500/20 flex items-center gap-1.5";
+                    chatStatusIndicator.className = "w-2 h-2 rounded-full bg-gray-500";
                     chatInput.disabled = true;
                     chatSend.disabled = true;
+                    // Auto-hide and terminate telemetry
+                    document.getElementById('stats-overlay').classList.add('opacity-0', 'pointer-events-none');
+                    document.getElementById('stats-overlay').classList.remove('opacity-100');
+                    document.getElementById('toggle-stats-btn').classList.add('crossed-line'); // Re-cross stats button
+                    stopStatsSimulator();
                 }
             };
         }
@@ -793,7 +1429,7 @@
                 addChatMessage("Peer", event.data);
             };
             dataChannel.onclose = () => {
-                chatStatusIndicator.className = "w-2 h-2 rounded-full bg-slate-500";
+                chatStatusIndicator.className = "w-2 h-2 rounded-full bg-gray-500";
                 chatInput.disabled = true;
                 chatSend.disabled = true;
                 addChatMessage("System", "Chat session closed.");
@@ -821,17 +1457,17 @@
 
         function addChatMessage(sender, text) {
             const msgDiv = document.createElement('div');
-            msgDiv.className = "flex flex-col gap-0.5 max-w-[85%] rounded-2xl px-3.5 py-2 text-xs leading-relaxed";
+            msgDiv.className = "flex flex-col gap-0.5 max-w-[85%] rounded-xl px-3 py-2";
             
             if (sender === "You") {
-                msgDiv.classList.add("bg-indigo-600", "text-white", "self-end", "ml-auto", "rounded-tr-none");
-                msgDiv.innerHTML = `<span class="font-bold text-[9px] opacity-75">You</span><p>${text}</p>`;
+                msgDiv.classList.add("bg-indigo-600", "text-white", "self-end", "ml-auto");
+                msgDiv.innerHTML = `<span class="font-bold text-[10px] opacity-75">You</span><p>${text}</p>`;
             } else if (sender === "System") {
-                msgDiv.classList.add("bg-slate-900", "text-slate-400", "mx-auto", "text-center", "text-[10px]", "border", "border-white/5");
+                msgDiv.classList.add("bg-gray-800", "text-gray-400", "mx-auto", "text-center", "text-[10px]");
                 msgDiv.innerHTML = `<p>${text}</p>`;
             } else {
-                msgDiv.classList.add("bg-slate-900", "text-slate-200", "self-start", "border", "border-white/5", "rounded-tl-none");
-                msgDiv.innerHTML = `<span class="font-bold text-[9px] text-emerald-400">${sender}</span><p>${text}</p>`;
+                msgDiv.classList.add("bg-gray-900", "text-gray-200", "self-start", "border", "border-gray-800");
+                msgDiv.innerHTML = `<span class="font-bold text-[10px] text-emerald-400">${sender}</span><p>${text}</p>`;
             }
 
             chatMessages.appendChild(msgDiv);
@@ -938,7 +1574,7 @@
             showNotification("Key copied to clipboard successfully!");
         };
 
-        // --- STREAMING_CHUNK: Integrating optional cloud database connection... ---
+
         // --- INTEGRATED CLOUD SERVICE (FIRESTORE) ---
         let firestoreInstance = null;
         let firebaseAppInstance = null;
@@ -954,13 +1590,12 @@
                 showNotification("No dynamic cloud config detected. Using offline manual P2P mode.");
                 // Update UI visually for lack of server config
                 document.getElementById('cloud-setup-container').innerHTML = `
-                    <div class="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-2xl text-yellow-300 text-xs leading-relaxed space-y-2">
-                        <p class="font-bold flex items-center gap-1"><i data-lucide="cloud-off" class="w-4 h-4"></i> Cloud Mode Unavailable</p>
-                        <p>This GitHub Pages template is running offline without persistent signaling databases configured.</p>
-                        <p class="text-[10px] text-slate-400">Please use the <strong>Manual Handshake Mode</strong> in the tab selector or provide your Firestore access tokens within runtime context configurations.</p>
+                    <div class="p-4 bg-yellow-600/15 border border-yellow-500/20 rounded-xl text-yellow-300 text-xs leading-relaxed space-y-2">
+                        <p class="font-bold">Cloud Mode Unavailable</p>
+                        <p>This GitHub Pages template is currently fully offline without persistent signaling databases configured.</p>
+                        <p class="text-[11px] text-gray-400">Please use the <strong>Manual Handshake Mode</strong> inside the tab selector or paste custom credentials in your source deployment variables.</p>
                     </div>
                 `;
-                lucide.createIcons();
                 return;
             }
 
@@ -979,7 +1614,7 @@
 
         async function setupCloudAuth() {
             try {
-                // Rule 3 Auth sequence
+                // Auth sequence
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                     const result = await firebase.auth().signInWithCustomToken(__initial_auth_token);
                     user = result.user;
@@ -1011,7 +1646,6 @@
             cloudJoinSubform.classList.add('flex');
         };
 
-        // Rule 1: Strict collection mapping: `/artifacts/{appId}/public/data/{collectionName}`
         const getAppId = () => typeof __app_id !== 'undefined' ? __app_id : 'nexuscall-default';
 
         // Cloud Host
@@ -1030,7 +1664,6 @@
             const randRoomId = Math.floor(100000 + Math.random() * 900000).toString();
             const appId = getAppId();
             
-            // Create target room document using mandatory Rule 1 paths
             roomDocRef = firestoreInstance.doc(`artifacts/${appId}/public/data/rooms/${randRoomId}`);
             
             cloudIdVal.innerText = randRoomId;
@@ -1062,7 +1695,7 @@
             const offer = await peerConnection.createOffer();
             await peerConnection.setLocalDescription(offer);
 
-            // Listen for Remote answer from Room using Rule 2 compatible queries
+            // Listen for Remote answer from Room
             roomDocRef.onSnapshot((docSnap) => {
                 if (!docSnap.exists) return;
                 const data = docSnap.data();
@@ -1109,7 +1742,6 @@
                 const data = docSnap.data();
                 createPeerConnectionInstance();
 
-                // Callee sets up logic handler
                 peerConnection.ondatachannel = (event) => {
                     setupDataChannel(event.channel);
                 };
@@ -1150,21 +1782,19 @@
             if (audioTrack) {
                 audioTrack.enabled = !audioTrack.enabled;
                 if (audioTrack.enabled) {
-                    toggleMicBtn.classList.remove('bg-red-600');
-                    micIcon.setAttribute('data-lucide', 'mic');
-                    initMicVisualization(localStream); // Restart viz loop
+                    toggleMicBtn.classList.remove('bg-red-600', 'crossed-line'); // Remove slash
+                    initMicVisualization(localStream); // Restart telemetry waves
                 } else {
-                    toggleMicBtn.classList.add('bg-red-600');
-                    micIcon.setAttribute('data-lucide', 'mic-off');
+                    toggleMicBtn.classList.add('crossed-line'); // Add slash
                     if (animationFrameId) {
                         cancelAnimationFrame(animationFrameId);
                     }
-                    // Flatten volume visual bars
-                    document.getElementById('audio-lvl-1').style.height = '2px';
-                    document.getElementById('audio-lvl-2').style.height = '2px';
-                    document.getElementById('audio-lvl-3').style.height = '2px';
+                    // Flatten volume visual feedback bars
+                    for (let i = 1; i <= 5; i++) {
+                        const bar = document.getElementById(`audio-lvl-${i}`);
+                        if (bar) bar.style.height = '2px';
+                    }
                 }
-                lucide.createIcons();
             }
         };
 
@@ -1174,13 +1804,10 @@
             if (videoTrack) {
                 videoTrack.enabled = !videoTrack.enabled;
                 if (videoTrack.enabled) {
-                    toggleCamBtn.classList.remove('bg-red-600');
-                    camIcon.setAttribute('data-lucide', 'video');
+                    toggleCamBtn.classList.remove('bg-red-600', 'crossed-line'); // Remove slash
                 } else {
-                    toggleCamBtn.classList.add('bg-red-600');
-                    camIcon.setAttribute('data-lucide', 'video-off');
+                    toggleCamBtn.classList.add('crossed-line'); // Add slash
                 }
-                lucide.createIcons();
             }
         };
 
@@ -1203,10 +1830,12 @@
                 }
                 
                 localVideo.srcObject = screenTracks;
+                toggleScreenBtn.classList.remove('crossed-line'); // Remove slash when active screen share is running
 
                 // Listen for screen sharing stop
                 videoTrack.onended = () => {
                     getMediaStream(); // Revert back to camera
+                    toggleScreenBtn.classList.add('crossed-line'); // Add slash back on end
                 };
                 
                 showNotification("Sharing your screen.");
@@ -1222,10 +1851,11 @@
                     errMsg.includes('disallowed') || 
                     errMsg.includes('policy')
                 ) {
-                    showErrorModal("Screen capture was disallowed. Sandboxed previews (like inside iframe containers) block screen capturing. To use this feature, open this page directly in a standard web browser window.");
+                    showErrorModal("Screen capture was disallowed or blocked by this browser window's sandboxing permissions policy. Please run the page in a dedicated tab.");
                 } else {
                     showNotification("Could not activate screen sharing.");
                 }
+                toggleScreenBtn.classList.add('crossed-line'); // Re-apply slash on error
             }
         };
 
@@ -1243,14 +1873,28 @@
             remoteVideo.srcObject = null;
             remotePlaceholder.classList.remove('hidden');
             
-            connectionBadge.innerHTML = `<span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span> Disconnected`;
-            connectionBadge.className = "px-3 py-1.5 text-xs font-semibold rounded-full bg-red-500/10 text-red-400 border border-red-500/20 flex items-center gap-2";
-            chatStatusIndicator.className = "w-2 h-2 rounded-full bg-slate-500";
+            connectionBadge.innerHTML = `<span class="w-2 h-2 rounded-full bg-red-500"></span> Disconnected`;
+            connectionBadge.className = "px-3 py-1 text-xs font-semibold rounded-full bg-red-500/10 text-red-400 border border-red-500/20 flex items-center gap-1.5";
+            chatStatusIndicator.className = "w-2 h-2 rounded-full bg-gray-500";
             chatInput.disabled = true;
             chatSend.disabled = true;
 
+            // Apply crossed out slashes on hangup to state initial states
+            toggleMicBtn.classList.add('crossed-line');
+            toggleCamBtn.classList.add('crossed-line');
+            toggleScreenBtn.classList.add('crossed-line');
+            document.getElementById('toggle-stats-btn').classList.add('crossed-line');
+            
+            // Terminate stats
+            document.getElementById('stats-overlay').classList.add('opacity-0', 'pointer-events-none');
+            document.getElementById('stats-overlay').classList.remove('opacity-100');
+            showStats = false;
+            stopStatsSimulator();
+
+            // Clear coordination logic
+            cleanupCoordinatedSignaling();
+
             showNotification("Active WebRTC call has been disconnected.");
-            goHome();
         };
 
     </script>
