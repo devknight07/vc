@@ -776,11 +776,51 @@
             infoModal.classList.remove('hidden');
         }
 
+        // --- STREAMING_CHUNK:Defining token compression utilities... ---
+        // High-performance token deflation to bypass ntfy 4096-character limits safely
+        async function compressString(str) {
+            try {
+                const stream = new Blob([str]).stream();
+                const compressedStream = stream.pipeThrough(new CompressionStream('deflate'));
+                const response = new Response(compressedStream);
+                const blob = await response.blob();
+                const arrayBuffer = await blob.arrayBuffer();
+                
+                let binary = '';
+                const bytes = new Uint8Array(arrayBuffer);
+                const len = bytes.byteLength;
+                for (let i = 0; i < len; i++) {
+                    binary += String.fromCharCode(bytes[i]);
+                }
+                return btoa(binary);
+            } catch (err) {
+                console.error("Compression failed, falling back to standard encoding", err);
+                return btoa(str);
+            }
+        }
+
+        async function decompressString(base64) {
+            try {
+                const binary = atob(base64);
+                const bytes = new Uint8Array(binary.length);
+                for (let i = 0; i < binary.length; i++) {
+                    bytes[i] = binary.charCodeAt(i);
+                }
+                const stream = new Blob([bytes]).stream();
+                const decompressedStream = stream.pipeThrough(new DecompressionStream('deflate'));
+                const response = new Response(decompressedStream);
+                return await response.text();
+            } catch (err) {
+                console.warn("Decompression failed, falling back to standard decoding", err);
+                return atob(base64);
+            }
+        }
+
         // --- SEAMLESS EPHEMERAL SIGNALING MECHANISM (6-Digit Rooms) ---
         function getCoordinatedTopics(roomCode) {
             return {
-                offer: `nexuscall_v2_offer_${roomCode}`,
-                answer: `nexuscall_v2_answer_${roomCode}`
+                offer: `nexuscall_v3_offer_${roomCode}`,
+                answer: `nexuscall_v3_answer_${roomCode}`
             };
         }
 
@@ -876,6 +916,7 @@
             window.history.pushState({}, '', url);
         }
 
+        // --- STREAMING_CHUNK:Configuring host creation flow... ---
         // Host creates room from landing page
         async function initiateCreateRoom() {
             document.getElementById('create-room-modal').classList.remove('hidden');
@@ -919,14 +960,15 @@
             const channel = peerConnection.createDataChannel("nexus-chat");
             setupDataChannel(channel);
 
-            // Gathers ICE Candidates and pushes complete SDP Offer
+            // Gathers ICE Candidates and pushes complete SDP Offer (Compressed)
             peerConnection.onicecandidate = async (e) => {
                 if (!e.candidate) {
-                    const sdpSerialized = btoa(JSON.stringify(peerConnection.localDescription));
+                    const offerPayload = JSON.stringify(peerConnection.localDescription);
+                    const compressedOffer = await compressString(offerPayload);
                     const topics = getCoordinatedTopics(roomCode);
                     
-                    // Publish Offer to ntfy signaling topic
-                    await publishSignal(topics.offer, sdpSerialized);
+                    // Publish Offer to ntfy signaling topic safely compressed under the character limit
+                    await publishSignal(topics.offer, compressedOffer);
 
                     // Update Host Modal UI
                     document.getElementById('created-room-code').innerText = roomCode;
@@ -972,7 +1014,7 @@
                 coordinatorSSE = new EventSource(`https://ntfy.sh/${topics.answer}/sse`);
                 coordinatorSSE.onmessage = async (e) => {
                     const msg = JSON.parse(e.data);
-                    if (msg.message) {
+                    if (msg.event === 'message' && msg.message) {
                         applyAnswerToken(msg.message);
                     }
                 };
@@ -990,6 +1032,9 @@
         }
 
         async function applyAnswerToken(base64Answer) {
+            // Guard clause to prevent duplicate answer negotiations
+            if (!peerConnection || peerConnection.signalingState === "stable") return;
+            
             try {
                 cleanupCoordinatedSignaling();
                 document.getElementById('create-room-modal').classList.add('hidden');
@@ -998,7 +1043,8 @@
                 launchApp('manual');
                 document.getElementById('remote-stream-message').innerText = "Connecting secure channel...";
 
-                const answerSdp = JSON.parse(atob(base64Answer));
+                const decompressedAnswer = await decompressString(base64Answer);
+                const answerSdp = JSON.parse(decompressedAnswer);
                 await peerConnection.setRemoteDescription(new RTCSessionDescription(answerSdp));
                 showNotification("Partner matched! Initiating encrypted session.");
             } catch (e) {
@@ -1017,6 +1063,7 @@
             openAgreementModal(roomCode);
         }
 
+        // --- STREAMING_CHUNK:Designing guest joining and retry handlers... ---
         // Agreement Approved: Client establishes WebRTC connection
         async function acceptAgreement() {
             document.getElementById('agreement-modal').classList.add('hidden');
@@ -1042,10 +1089,17 @@
                 return;
             }
 
-            document.getElementById('remote-stream-message').innerText = "Fetching room signaling details...";
+            // Fetch room signaling details with robust polling retries to wait for host candidate gathering
             const topics = getCoordinatedTopics(roomCode);
+            let hostOfferBase64 = null;
+            
+            for (let i = 0; i < 6; i++) {
+                document.getElementById('remote-stream-message').innerText = `Fetching signaling details (Attempt ${i + 1}/6)...`;
+                hostOfferBase64 = await fetchLatestSignal(topics.offer);
+                if (hostOfferBase64) break;
+                await new Promise(resolve => setTimeout(resolve, 1500));
+            }
 
-            const hostOfferBase64 = await fetchLatestSignal(topics.offer);
             if (!hostOfferBase64) {
                 showNotification("Room is empty or session expired.");
                 returnToLanding();
@@ -1061,14 +1115,16 @@
 
             peerConnection.onicecandidate = async (e) => {
                 if (!e.candidate) {
-                    const answerSdpSerialized = btoa(JSON.stringify(peerConnection.localDescription));
-                    await publishSignal(topics.answer, answerSdpSerialized);
+                    const answerPayload = JSON.stringify(peerConnection.localDescription);
+                    const compressedAnswer = await compressString(answerPayload);
+                    await publishSignal(topics.answer, compressedAnswer);
                     showNotification("Coordinates aligned. Joining call room!");
                 }
             };
 
             try {
-                const hostOfferSdp = JSON.parse(atob(hostOfferBase64));
+                const decompressedOffer = await decompressString(hostOfferBase64);
+                const hostOfferSdp = JSON.parse(decompressedOffer);
                 await peerConnection.setRemoteDescription(new RTCSessionDescription(hostOfferSdp));
                 const answer = await peerConnection.createAnswer();
                 await peerConnection.setLocalDescription(answer);
@@ -1165,6 +1221,7 @@
             }
         }
 
+        // --- STREAMING_CHUNK:Binding UI controls and user actions... ---
         // Toggle telemetry stats display panel and remove/add slash
         document.getElementById('toggle-stats-btn').onclick = () => {
             showStats = !showStats;
